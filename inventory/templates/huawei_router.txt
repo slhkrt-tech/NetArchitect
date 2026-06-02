@@ -1,0 +1,22 @@
+! NetArchitect - Huawei Router Konfigürasyonu
+system-view
+sysname {{ hostname }}
+!
+interface {{ interface_name }}
+ undo shutdown
+!
+interface {{ interface_name }}.{{ vlan_id }}
+ description {{ vlan_name }}_AGI
+ dot1q termination vid {{ vlan_id }}
+ arp broadcast enable
+ quit
+!
+{% if enable_ospf %}
+ospf 1
+ area {{ ospf_area }}
+  network {{ ospf_network }}
+  quit
+ quit
+{% endif %}
+return
+save

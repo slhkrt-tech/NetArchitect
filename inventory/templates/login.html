@@ -1,0 +1,200 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="tr" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NetArchitect - Güvenli Giriş</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    
+    <style>
+        :root {
+            --petrol-bg: #113231;
+            --petrol-hover: #1a4f4d;
+        }
+
+        body { 
+            height: 100vh;
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            margin: 0;
+            background-color: #f8fafc; /* Ferah zemin */
+            font-family: 'Inter', sans-serif;
+        }
+
+        .login-card {
+            width: 100%;
+            max-width: 420px;
+            border-radius: 20px;
+            background-color: #ffffff;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.05);
+            border: 1px solid #e2e8f0;
+        }
+
+        .brand-logo {
+            width: 64px;
+            height: 64px;
+            background-color: rgba(14, 165, 233, 0.1);
+            color: #0ea5e9;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+
+        .form-label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .form-control:focus {
+            background-color: #fff;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1);
+        }
+
+        .btn-login {
+            background-color: var(--petrol-bg);
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 12px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+        }
+
+        .btn-login:hover {
+            background-color: var(--petrol-hover);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(17, 50, 49, 0.2);
+        }
+
+        .input-group-text {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-left: none;
+            border-radius: 0 12px 12px 0;
+            color: #94a3b8;
+        }
+
+        .divider {
+            height: 1px;
+            background-color: #e2e8f0;
+            margin: 30px 0;
+            position: relative;
+        }
+
+        .divider span {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 0 15px;
+            color: #94a3b8;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="login-card p-5 mx-3">
+        <div class="text-center mb-4">
+            <div class="brand-logo">
+                <span class="iconify fs-1" data-icon="mdi:rocket-launch"></span>
+            </div>
+            <h3 class="fw-bold text-dark mb-1">NetArchitect</h3>
+            <p class="text-muted small">BT Altyapı Yönetim Platformu</p>
+        </div>
+
+        <form method="POST" id="loginForm">
+            {% csrf_token %}
+            
+            <div class="mb-3">
+                <label class="form-label">Kullanıcı Adı</label>
+                <input type="text" name="username" class="form-control" placeholder="Kullanıcı adınızı girin" required autofocus>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label">Şifre</label>
+                <div class="input-group">
+                    <input type="password" name="password" id="passwordInput" class="form-control" placeholder="••••••••" required>
+                    <span class="input-group-text" style="cursor: pointer;" onclick="togglePassword()">
+                        <span class="iconify fs-5" id="eyeIcon" data-icon="mdi:eye-outline"></span>
+                    </span>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-login w-100 mb-3 shadow-sm" id="submitBtn">
+                Giriş Yap
+            </button>
+        </form>
+
+        {% if form.errors %}
+        <div class="alert bg-danger bg-opacity-10 text-danger border-0 small fw-bold py-2 text-center rounded-3 mb-0">
+            <span class="iconify me-1 fs-5 align-middle" data-icon="mdi:alert-circle"></span> Kullanıcı adı veya şifre hatalı!
+        </div>
+        {% endif %}
+
+        <div class="divider"><span>VEYA</span></div>
+
+        <div class="d-grid gap-2 mb-3">
+            <a href="{% url 'social:begin' 'azuread-oauth2' %}" class="btn btn-outline-primary rounded-3 py-2 fw-medium border-primary-subtle text-primary">
+                <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:microsoft"></span> Microsoft ile Giriş Yap
+            </a>
+            <a href="{% url 'social:begin' 'oidc' %}" class="btn btn-outline-secondary rounded-3 py-2 fw-medium border-secondary-subtle text-dark">
+                <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:shield-key"></span> Kurumsal SSO ile Giriş Yap
+            </a>
+        </div>
+
+        <div class="text-center">
+            <p class="text-muted small mb-3">Henüz bir hesabınız yok mu?</p>
+            <a href="/kayit-ol/" class="btn btn-outline-secondary w-100 rounded-3 py-2 fw-medium border-secondary-subtle text-dark">
+                <span class="iconify me-1 fs-5 align-text-bottom" data-icon="mdi:account-plus-outline"></span> Yeni Hesap Oluştur
+            </a>
+        </div>
+    </div>
+
+    <script>
+        // Şifre Göster/Gizle Fonksiyonu
+        function togglePassword() {
+            const input = document.getElementById('passwordInput');
+            const icon = document.getElementById('eyeIcon');
+            
+            if (input.type === "password") {
+                input.type = "text";
+                icon.setAttribute('data-icon', 'mdi:eye-off-outline');
+            } else {
+                input.type = "password";
+                icon.setAttribute('data-icon', 'mdi:eye-outline');
+            }
+        }
+
+        // Form gönderilirken buton animasyonu
+        document.getElementById('loginForm').onsubmit = function() {
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Giriş Yapılıyor...';
+        };
+    </script>
+</body>
+</html>

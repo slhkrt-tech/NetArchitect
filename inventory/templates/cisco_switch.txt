@@ -1,0 +1,28 @@
+! NetArchitect Otomatik Konfigürasyon Çıktısı
+! Cihaz: {{ hostname }}
+!
+hostname {{ hostname }}
+!
+vlan {{ vlan_id }}
+ name {{ vlan_name }}
+!
+interface {{ interface_name }}
+ switchport mode access
+ switchport access vlan {{ vlan_id }}
+ spanning-tree portfast
+{% if enable_port_security %}
+ ! --- Port Security (MAC Filtresi) Yapılandırması ---
+ switchport port-security
+ switchport port-security maximum {{ mac_limit }}
+ switchport port-security violation restrict
+ switchport port-security mac-address sticky
+{% endif %}
+!
+{% if enable_ospf %}
+! --- OSPF Dinamik Yönlendirme Yapılandırması ---
+router ospf 1
+ network {{ ospf_network }} area {{ ospf_area }}
+!
+{% endif %}
+end
+write memory

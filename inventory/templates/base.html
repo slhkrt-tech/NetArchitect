@@ -1,0 +1,594 @@
+{% load static %}
+{% load i18n %}
+{% load role_tags %}
+<!DOCTYPE html>
+<html lang="{{ LANGUAGE_CODE }}" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}NetArchitect{% endblock %}</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    
+    <script>
+        (function() {
+            const savedTheme = localStorage.getItem('saas_theme') || 'light';
+            document.documentElement.setAttribute('data-bs-theme', savedTheme);
+        })();
+    </script>
+    
+    <style>
+        /* TEMA DEĞİŞKENLERİ */
+        :root {
+            --petrol-bg: #113231; 
+            --petrol-active: #1a4f4d;
+            --petrol-hover: #16403e;
+            
+            --main-bg: #f8fafc; 
+            --topbar-bg: #ffffff;
+            --text-main: #334155;
+            --border-color: #e2e8f0;
+            --card-bg: #ffffff;
+        }
+
+        [data-bs-theme="dark"] {
+            --main-bg: #0f172a; 
+            --topbar-bg: #1e293b;
+            --text-main: #f8fafc;
+            --border-color: #334155;
+            --card-bg: #1e293b;
+        }
+        
+        body { 
+            background-color: var(--main-bg) !important; 
+            color: var(--text-main) !important; 
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        /* --- SİDEBAR KUSURSUZ TASARIM --- */
+        .sidebar { 
+            width: 260px; 
+            min-height: 100vh; 
+            background-color: var(--petrol-bg); 
+            color: #fff; 
+            transition: all 0.3s ease-in-out; 
+            z-index: 1040;
+            position: fixed;
+            left: 0;
+            top: 0;
+            bottom: 0;
+        }
+        
+        .sidebar .nav-link { 
+            color: #cbd5e1; 
+            font-weight: 500; 
+            border-radius: 8px; 
+            margin-bottom: 4px; 
+            padding: 10px 16px;
+            transition: all 0.2s ease-in-out;
+            display: flex;
+            align-items: center;
+            text-decoration: none;
+        }
+        
+        .sidebar .nav-link .iconify {
+            font-size: 1.35rem;
+            margin-right: 12px;
+            opacity: 0.85;
+            transition: all 0.2s ease;
+        }
+        
+        .sidebar .nav-link:hover { 
+            color: #ffffff; 
+            background-color: rgba(255, 255, 255, 0.05); 
+            transform: translateX(4px);
+        }
+        
+        .sidebar .nav-link.active { 
+            color: #ffffff !important; 
+            background-color: var(--petrol-active) !important; 
+            border-left: 4px solid #0ea5e9; 
+            border-radius: 0 8px 8px 0; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
+        }
+        
+        .sidebar .nav-link.active .iconify {
+            opacity: 1;
+            color: #0ea5e9 !important; 
+        }
+
+        /* Sekme Başlıkları (Kategoriler) */
+        .sidebar-heading {
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            padding: 0 16px;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* --- ANA İÇERİK VE ÜST BAR --- */
+        .main-wrapper { 
+            margin-left: 260px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            transition: all 0.3s;
+        }
+        .topbar { 
+            background-color: var(--topbar-bg); 
+            border-bottom: 1px solid var(--border-color); 
+            height: 70px; 
+            z-index: 1030;
+            position: sticky;
+            top: 0;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        /* Mobil & Tablet Uyumluluk */
+        @media (max-width: 991.98px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .main-wrapper { margin-left: 0; }
+        }
+
+        /* Tema Uyumlu Kartlar */
+        .glass-card, .card { 
+            background-color: var(--card-bg) !important; 
+            border: 1px solid var(--border-color) !important; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important; 
+            color: var(--text-main) !important;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .text-body { color: var(--text-main) !important; }
+        .bg-body-tertiary { background-color: var(--card-bg) !important; }
+        
+        .dropdown-menu { background-color: var(--card-bg); border-color: var(--border-color); }
+        .dropdown-item { color: var(--text-main); }
+        .dropdown-item:hover { background-color: var(--border-color); color: var(--text-main); }
+        
+        /* =========================================
+           PRO-TABLO (Enterprise Görünümü) STİLLERİ 
+           ========================================= */
+        .pro-table-wrapper {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid var(--border-color);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+        .pro-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px; /* Satırlar arası boşluk */
+        }
+        .pro-table th {
+            background-color: transparent;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 10px 15px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .pro-table tr {
+            background-color: var(--main-bg);
+            transition: all 0.2s ease-in-out;
+        }
+        .pro-table tr:hover {
+            background-color: var(--card-bg);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+            border: 1px solid var(--border-color);
+        }
+        .pro-table td {
+            padding: 16px 15px;
+            color: var(--text-main);
+            vertical-align: middle;
+            border: 1px solid transparent; 
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+        }
+        .pro-table td:first-child { 
+            border-top-left-radius: 8px; 
+            border-bottom-left-radius: 8px; 
+            border-left: 1px solid var(--border-color);
+        }
+        .pro-table td:last-child { 
+            border-top-right-radius: 8px; 
+            border-bottom-right-radius: 8px; 
+            border-right: 1px solid var(--border-color);
+        }
+        
+        [data-bs-theme="dark"] .pro-table tr {
+             background-color: #0f172a;
+        }
+        [data-bs-theme="dark"] .pro-table tr:hover {
+             background-color: #1e293b;
+        }
+        
+        /* Event-Driven Pulse Animations */
+        @keyframes pulse-danger {
+            0%, 100% { background-color: #dc3545; box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
+            50% { background-color: #a02830; box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+        }
+        .card-pulse-danger { animation: pulse-danger 2s infinite; color: white !important; }
+        .trend-indicator { font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+        .trend-up { background-color: #d4edda; color: #155724; }
+        .trend-down { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body> 
+
+    <aside class="sidebar p-3 d-flex flex-column shadow-lg" id="sidebar">
+        <div class="d-flex justify-content-between align-items-center mb-4 mt-2 px-2">
+            <a href="/" class="d-flex align-items-center text-white text-decoration-none">
+                <span class="iconify fs-2 me-2 text-info" data-icon="mdi:rocket-launch"></span>
+                <span class="fs-4 fw-bold" style="letter-spacing: 0.5px;">NetArchitect</span>
+            </a>
+            <button class="btn btn-link text-white d-lg-none p-0" id="closeSidebar">
+                <span class="iconify fs-3" data-icon="mdi:close"></span>
+            </button>
+        </div>
+        
+        <div class="overflow-auto flex-grow-1" style="overflow-x: hidden;">
+            {% if user.is_staff %}
+            
+            {% if request.user|has_role:"Ağ Ekibi,Sistem Ekibi,Yönetim" %}
+            <p class="sidebar-heading">{% trans "Gözlem & Analiz" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:view-dashboard-outline"></span> {% trans "Dashboard" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/monitor/" class="nav-link {% if request.path == '/monitor/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:chart-line"></span> {% trans "Zabbix Canlı İzleme" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/topoloji/" class="nav-link {% if request.path == '/topoloji/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:graph-outline"></span> {% trans "Ağ Topolojisi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'rack_elevation' %}" class="nav-link {% if request.path == '/veri-merkezi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:server"></span> {% trans "Veri Merkezi" %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+
+            {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
+            <p class="sidebar-heading">{% trans "BT Varlık Merkezi" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="/it-envanter/" class="nav-link {% if request.path == '/it-envanter/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:server-network"></span> {% trans "BT Varlık Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/ag-tarayici/" class="nav-link {% if request.path == '/ag-tarayici/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:radar"></span> {% trans "Derin Ağ Keşfi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/ipam/" class="nav-link {% if '/ipam/' in request.path %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:ip-network-outline"></span> {% trans "Görsel IPAM" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/subnet-hesapla/" class="nav-link {% if request.path == '/subnet-hesapla/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:calculator-variant-outline"></span> {% trans "Subnet Hesapla" %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+
+            {% if request.user|has_role:"Sistem Ekibi,Yönetim,Ağ Ekibi" %}
+            <p class="sidebar-heading">{% trans "Siber Güvenlik & Operasyon" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="{% url 'reporting_hub' %}" class="nav-link {% if request.path == '/raporlar/' %}active{% endif %}">
+                        <span class="iconify text-info" data-icon="mdi:file-chart-outline"></span> {% trans "Raporlama Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/sistem-loglari/" class="nav-link {% if request.path == '/sistem-loglari/' %}active{% endif %}">
+                        <span class="iconify text-danger" data-icon="mdi:shield-check-outline"></span> {% trans "Güvenlik Olayları & Loglar" %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+
+            {% if request.user|has_role:"Ağ Ekibi,HelpDesk,Yönetim" %}
+            <p class="sidebar-heading">{% trans "Otomasyon & ITSM" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="/panel/" class="nav-link {% if request.path == '/panel/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:ticket-confirmation-outline"></span> {% trans "Sistem & Bilet Yönetimi" %}
+                    </a>
+                </li>
+                
+                {% if request.user|has_role:"Ağ Ekibi,Yönetim" %}
+                <li class="nav-item">
+                    <a href="{% url 'bulk_config_generator' %}" class="nav-link {% if request.path == '/toplu-generator/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:rocket-launch-outline"></span> {% trans "Toplu Konfigürasyon" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="/uretici/" class="nav-link {% if request.path == '/uretici/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:console-line"></span> {% trans "Cihaz & CAB Yönetimi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'port_mapping_list' %}" class="nav-link {% if '/port-haritasi/' in request.path %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Port Haritaları" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'device_backup' %}" class="nav-link {% if request.path == '/yedekleme/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:database-sync-outline"></span> {% trans "Yedekleme & Kurtarma" %}
+                    </a>
+                </li>
+                {% endif %}
+                
+                {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
+                <li class="nav-item">
+                    <a href="/admin/inventory/servicecatalogitem/" target="_blank" class="nav-link" title="Yeni hizmet kartları ekleyin (Yeni Sekme)">
+                        <span class="iconify" data-icon="mdi:format-list-checks"></span> {% trans "Hizmet Kataloğu" %} <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.9rem;"></span>
+                    </a>
+                </li>
+                {% endif %}
+            </ul>
+            {% endif %}
+            
+            {% if user.is_authenticated %}
+            <p class="sidebar-heading">{% trans "Dokümantasyon" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="{% url 'knowledge_base' %}" class="nav-link {% if request.path == '/bilgi-bankasi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:book-open-page-variant-outline"></span> {% trans "Bilgi Bankası" %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+
+            {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
+            <hr class="border-secondary my-3 opacity-25">
+            <p class="sidebar-heading text-warning">{% trans "Yönetim & Yapılandırma" %}</p>
+            <ul class="nav flex-column mb-4">
+                <li class="nav-item">
+                    <a href="/admin/" target="_blank" class="nav-link text-warning bg-warning bg-opacity-10 border border-warning-subtle rounded-3" title="Gelişmiş ayarlar ve kullanıcı rolleri (Yeni Sekme)">
+                        <span class="iconify fs-4" data-icon="mdi:cogs"></span> {% trans "Sistem Ayarları ve IAM" %}
+                        <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.8rem;"></span>
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+            
+            {% endif %}
+            
+            {% if user.is_authenticated and not user.is_staff %}
+            <p class="sidebar-heading">{% trans "Kurumsal Hizmetler" %}</p>
+            <ul class="nav flex-column mb-3">
+                <li class="nav-item">
+                    <a href="/kullanici-paneli/" class="nav-link {% if request.path == '/kullanici-paneli/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:room-service-outline"></span> {% trans "Hizmet Kataloğu & Destek" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'knowledge_base' %}" class="nav-link {% if request.path == '/bilgi-bankasi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:book-open-page-variant-outline"></span> {% trans "Bilgi Bankası" %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+        </div>
+    </aside>
+
+    <div class="main-wrapper">
+        <header class="topbar px-4 d-flex align-items-center justify-content-between shadow-sm">
+            <button class="btn d-lg-none border-secondary-subtle me-2" id="openSidebar" style="color: var(--text-main);">
+                <span class="iconify fs-4 align-middle" data-icon="mdi:menu"></span>
+            </button>
+            <div class="d-none d-md-flex align-items-center"></div>
+
+            <div class="ms-auto d-flex align-items-center">
+                
+                <button class="btn btn-link text-muted me-3" data-bs-toggle="modal" data-bs-target="#helpModal" title="Bu sayfa nasıl çalışır?">
+                    <span class="iconify fs-4" data-icon="mdi:help-circle-outline"></span>
+                </button>
+
+                <div class="dropdown me-3">
+                    <form action="{% url 'set_language' %}" method="post" id="language-form" class="m-0">
+                        {% csrf_token %}
+                        <input name="next" type="hidden" value="{{ request.get_full_path }}">
+                        <a href="#" class="d-flex align-items-center text-decoration-none text-muted" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="iconify fs-4" data-icon="mdi:earth"></span>
+                            <span class="ms-1 d-none d-sm-inline fw-bold">{% get_current_language as LANGUAGE_CODE %}{{ LANGUAGE_CODE|upper }}</span>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 rounded-3 p-2">
+                            {% get_available_languages as LANGUAGES %}
+                            {% for language in LANGUAGES %}
+                            <li>
+                                <button type="submit" name="language" value="{{ language.0 }}" class="dropdown-item fw-medium py-2 rounded {% if language.0 == LANGUAGE_CODE %}bg-primary bg-opacity-10 text-primary{% endif %}">
+                                    {{ language.1 }}
+                                </button>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </form>
+                </div>
+
+                {% if user.is_authenticated %}
+                <div class="dropdown">
+                    <a href="#" class="d-flex align-items-center text-decoration-none fw-bold" style="color: var(--text-main);" data-bs-toggle="dropdown" aria-expanded="false">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-2 shadow-sm" style="width: 38px; height: 38px; font-size: 1.1rem;">
+                            {{ user.username|make_list|first|upper }}
+                        </div>
+                        <span class="d-none d-sm-inline">{{ user.username }}</span>
+                        <span class="iconify ms-1 text-muted" data-icon="mdi:chevron-down"></span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 rounded-3 p-2">
+                        <li>
+                            <a class="dropdown-item fw-medium py-2 rounded" href="#" id="theme-toggle">
+                                <span class="iconify me-2 text-warning align-text-bottom fs-5" id="theme-icon" data-icon="mdi:weather-night"></span> <span id="theme-text">{% trans "Gece Modu" %}</span>
+                            </a>
+                        </li>
+                        {% if user.is_staff %}
+                        <li>
+                            <a class="dropdown-item fw-medium py-2 rounded text-primary" href="/api/" target="_blank">
+                                <span class="iconify me-2 align-text-bottom fs-5" data-icon="mdi:api"></span> {% trans "API Dokümanı" %}
+                            </a>
+                        </li>
+                        <li>
+                            <a class="dropdown-item fw-medium py-2 rounded text-danger" href="/admin/" target="_blank">
+                                <span class="iconify me-2 align-text-bottom fs-5" data-icon="mdi:database-cog-outline"></span> {% trans "Gelişmiş Ayarlar" %}
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <form action="{% url 'logout' %}" method="post" class="m-0">
+                                {% csrf_token %}
+                                <button type="submit" class="dropdown-item text-danger fw-bold py-2 rounded">
+                                    <span class="iconify me-2 align-text-bottom fs-5" data-icon="mdi:logout"></span> {% trans "Çıkış Yap" %}
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+        </header>
+
+        <main class="p-4 flex-grow-1">
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+
+    <div class="modal fade" id="helpModal" tabindex="-1" aria-hidden="true" data-bs-theme="light">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-secondary-subtle shadow-lg rounded-4 bg-body text-body">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title fw-bold text-info d-flex align-items-center">
+                <span class="bg-info bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4 text-info" data-icon="mdi:information-outline"></span></span>
+                {% trans "Sistem Bilgi Dokümanı" %}
+            </h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body p-4 text-muted small">
+            <h6 class="fw-bold text-body mb-2">{% trans "Hizmet Kataloğu & ITSM" %}</h6>
+            <p class="mb-3">{% trans "Kullanıcılar sisteme girdiklerinde sıradan arıza kaydı açmak yerine, sizin oluşturduğunuz Hizmet Kataloğundan sipariş verir gibi teknik talepte bulunabilirler." %}</p>
+
+            <h6 class="fw-bold text-body mb-2">{% trans "AIOps & PRTG Alarmları" %}</h6>
+            <p class="mb-3">{% trans "Yapay Zeka Destekli Tahminleyici Bakım (Predictive Maintenance) modülü, cihazların doluluk oranını Linear Regression ile hesaplar ve sistem çökmeden 14 gün önce otonom olarak bilet açar." %}</p>
+            
+            <h6 class="fw-bold text-body mb-2">{% trans "Otonom Savunma (Active Response)" %}</h6>
+            <p class="mb-3">{% trans "Dışarıdan gelen Wazuh veya SIEM logları Webhook ile içeri alınır. Cihazlara yapılan Brute-Force gibi saldırılar tespit edildiğinde sistem, ilgili IP'yi cihaz üzerinde otomatik olarak karantinaya alır." %}</p>
+            
+            <h6 class="fw-bold text-body mb-2">{% trans "Toplu İşlem (Bulk Operation)" %}</h6>
+            <p class="mb-0">{% trans "Toplu Konfigürasyon menüsünü kullanarak 100 cihaza aynı anda, cihazları yormadan (Asenkron Celery ile) tek tıkla konfigürasyon basabilirsiniz." %}</p>
+          </div>
+          <div class="modal-footer border-0 pt-0">
+              <button type="button" class="btn btn-light w-100 fw-bold border-secondary-subtle" data-bs-dismiss="modal">{% trans "Anladım, Kapat" %}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{% static 'js/main.js' %}"></script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const openBtn = document.getElementById('openSidebar');
+            const closeBtn = document.getElementById('closeSidebar');
+
+            if(openBtn) openBtn.addEventListener('click', () => sidebar.classList.add('show'));
+            if(closeBtn) closeBtn.addEventListener('click', () => sidebar.classList.remove('show'));
+
+            const themeToggle = document.getElementById('theme-toggle');
+            const htmlElement = document.documentElement;
+            const themeIcon = document.getElementById('theme-icon');
+            const themeText = document.getElementById('theme-text');
+
+            const currentTheme = htmlElement.getAttribute('data-bs-theme');
+            updateThemeUI(currentTheme);
+
+            if (themeToggle) {
+                themeToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const current = htmlElement.getAttribute('data-bs-theme');
+                    const newTheme = current === 'dark' ? 'light' : 'dark';
+                    
+                    htmlElement.setAttribute('data-bs-theme', newTheme);
+                    localStorage.setItem('saas_theme', newTheme);
+                    updateThemeUI(newTheme);
+                });
+            }
+
+            function updateThemeUI(theme) {
+                if(!themeIcon || !themeText) return;
+                
+                if(theme === 'dark') {
+                    themeIcon.setAttribute('data-icon', 'mdi:weather-sunny');
+                    themeIcon.classList.replace('text-warning', 'text-light');
+                    themeText.textContent = "{% trans 'Gündüz Modu' %}";
+                } else {
+                    themeIcon.setAttribute('data-icon', 'mdi:weather-night');
+                    themeIcon.classList.replace('text-light', 'text-warning');
+                    themeText.textContent = "{% trans 'Gece Modu' %}";
+                }
+            }
+        });
+    </script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script>
+        function renderNetArchChart(canvasId, type, labels, data, colors, titleText = '') {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return; 
+            
+            const ctx = canvas.getContext('2d');
+            return new Chart(ctx, {
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20, color: 'var(--text-main)' } },
+                        title: { display: !!titleText, text: titleText, font: { size: 16, weight: 'bold' }, color: 'var(--text-main)' }
+                    },
+                    cutout: type === 'doughnut' ? '75%' : undefined
+                }
+            });
+        }
+    </script>
+    
+    {% block scripts %}
+    {% endblock %}
+</body>
+</html>

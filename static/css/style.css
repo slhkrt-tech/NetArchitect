@@ -1,0 +1,221 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --primary-color: #4f46e5;
+    --dark-bg: #0f172a;
+    --text-main: #1e293b;
+    --transition-speed: 0.3s;
+}
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-color: #f8fafc; 
+    color: var(--text-main);
+    transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+    padding-bottom: 2rem;
+}
+
+/* ==========================================
+   NETARCHITECT GLOBAL İKON HİZALAMA DÜZELTMESİ
+   ========================================== */
+svg.iconify, span.iconify {
+    /* Bootstrap'in hatalı align sınıflarını ezer ve endüstri standardı olan -0.125em değerine sabitler */
+    vertical-align: -0.125em !important; 
+}
+
+/* Navbar, Buton ve Başlıkların içindeki ikonlar için ekstra kusursuzlaştırma */
+.nav-link .iconify, .btn .iconify, h1 .iconify, h2 .iconify, h3 .iconify, h4 .iconify, h5 .iconify, h6 .iconify {
+    vertical-align: text-bottom !important;
+    margin-bottom: 0.1em !important;
+}
+
+/* Tablo içleri ve küçük yazılardaki (small) ikonlar için */
+td .iconify, small .iconify, .badge .iconify {
+    vertical-align: middle !important;
+}
+
+/* --- BUZLU CAM NAVBAR --- */
+.navbar-glass {
+    background: rgba(255, 255, 255, 0.75) !important;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+}
+
+/* --- MODERN KART TASARIMI --- */
+.card {
+    border: none !important;
+    border-radius: 1.25rem !important; 
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-3px); /* Daha yumuşak, profesyonel kalkış */
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* --- GİRİŞ KARTI ÖZEL BUZLU CAM --- */
+.login-card {
+    max-width: 400px;
+    width: 100%;
+    background: rgba(255, 255, 255, 0.8) !important;
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+/* --- MODERN BUTONLAR --- */
+.btn {
+    border-radius: 0.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease-in-out;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* --- TABLOLARA PRO GÖRÜNÜM --- */
+.table {
+    border-collapse: collapse;
+    background: rgba(255, 255, 255, 0.92);
+    border-radius: 1rem;
+    overflow: hidden;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+.table th,
+.table td {
+    border-color: #e2e8f0;
+    padding: 1rem 1.1rem;
+    vertical-align: middle;
+}
+.table thead th {
+    background: rgba(15, 23, 42, 0.04);
+    color: #0f172a;
+    font-weight: 600;
+}
+.table tbody tr {
+    transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.table tbody tr:hover {
+    background-color: rgba(14, 165, 233, 0.08);
+    transform: translateX(2px);
+}
+.table-sm th,
+.table-sm td {
+    padding: 0.85rem 0.9rem;
+}
+
+/* --- FORM ELEMANLARI ODAKLANMA EFEKTİ --- */
+.form-control:focus, .form-select:focus, textarea:focus {
+    border-color: #0dcaf0 !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 202, 240, 0.25) !important;
+}
+
+/* --- YÜKLENİYOR ANİMASYONU --- */
+@keyframes spin {
+    100% { transform: rotate(360deg); }
+}
+.animate-spin {
+    animation: spin 1s linear infinite;
+    font-size: 1.2rem;
+    vertical-align: middle;
+}
+
+/* --- TABLO GENEL AYARLARI --- */
+.dataTables_wrapper .dataTables_length select, 
+.dataTables_wrapper .dataTables_filter input {
+    border-radius: 5px;
+    padding: 4px 8px;
+    border: 1px solid #dee2e6;
+    outline: none;
+}
+.page-item.active .page-link {
+    background-color: #0dcaf0 !important;
+    border-color: #0dcaf0 !important;
+    color: #000 !important;
+    font-weight: bold;
+}
+
+/* --- KAYDIRMA ÇUBUĞU --- */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #f1f5f9; 
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1; 
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8; 
+}
+
+
+/* ==========================================
+   KOYU TEMA (DARK MODE) ENTEGRASYONU
+========================================== */
+[data-bs-theme="dark"] body {
+    background-color: var(--dark-bg);
+    color: #f1f5f9;
+}
+[data-bs-theme="dark"] .navbar-glass {
+    background: rgba(15, 23, 42, 0.8) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+[data-bs-theme="dark"] .card {
+    background-color: #1e293b;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+}
+[data-bs-theme="dark"] .login-card {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+[data-bs-theme="dark"] .bg-light {
+    background-color: #334155 !important;
+}
+[data-bs-theme="dark"] .text-muted {
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .breadcrumb {
+    background-color: #1e293b !important;
+}
+[data-bs-theme="dark"] .text-dark {
+    color: #f1f5f9 !important;
+}
+
+/* Koyu Tema - DataTables Ayarları */
+[data-bs-theme="dark"] .dataTables_wrapper .dataTables_length select, 
+[data-bs-theme="dark"] .dataTables_wrapper .dataTables_filter input {
+    background-color: #1e293b;
+    color: white;
+    border: 1px solid #334155;
+}
+[data-bs-theme="dark"] .dataTables_info, 
+[data-bs-theme="dark"] .dataTables_length, 
+[data-bs-theme="dark"] .dataTables_filter {
+    color: #94a3b8 !important;
+}
+[data-bs-theme="dark"] .page-link {
+    background-color: #1e293b;
+    border-color: #334155;
+    color: #0dcaf0;
+}
+[data-bs-theme="dark"] .page-link:hover {
+    background-color: #334155;
+    color: white;
+}
+[data-bs-theme="dark"] ::-webkit-scrollbar-track {
+    background: #1e293b; 
+}
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #475569; 
+}
+[data-bs-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+    background: #64748b; 
+}

@@ -1,0 +1,272 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ device.name }} Port Haritası - NetArchitect{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    
+    {% if messages %}
+        <div class="mb-4">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm fw-medium border-0 rounded-4 d-flex align-items-center" role="alert">
+                <span class="iconify me-2 fs-4" data-icon="mdi:information-outline"></span> {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1 d-flex align-items-center">
+                <a href="{% url 'custom_admin' %}" class="text-muted text-decoration-none me-2" title="Geri Dön"><span class="iconify" data-icon="mdi:arrow-left-circle"></span></a>
+                Fiziksel Port Haritası: <span class="text-primary ms-2">{{ device.name }}</span>
+            </h4>
+            <p class="text-muted small mb-0 ms-5">{{ device.get_device_type_display }} | {{ device.get_vendor_display }} | Toplam Port: {{ ports.count }}</p>
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+            <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-3 py-2"><span class="iconify me-1" data-icon="mdi:lan-connect"></span> Aktif</span>
+            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-3 py-2"><span class="iconify me-1" data-icon="mdi:lan-disconnect"></span> Boş</span>
+            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-3 py-2"><span class="iconify me-1" data-icon="mdi:cancel"></span> Kapalı</span>
+        </div>
+    </div>
+
+    <div class="switch-hardware shadow-lg rounded-4 mb-5" style="background-color: #0f172a !important; border: 2px solid #334155 !important;">
+        <div class="border-bottom-0 pt-3 px-4 pb-2 d-flex justify-content-between align-items-center" style="background-color: rgba(255,255,255,0.02);">
+            <div class="d-flex align-items-center">
+                <span class="iconify text-info fs-3 me-2" data-icon="mdi:router-network"></span>
+                <span class="text-white fw-bold font-monospace" style="letter-spacing: 1px;">{{ device.get_vendor_display|upper }} CATALYST 24-PORT</span>
+            </div>
+            <div class="d-flex gap-1">
+                <span class="rounded-circle bg-success" style="width: 8px; height: 8px; box-shadow: 0 0 5px #10b981;"></span>
+                <span class="rounded-circle bg-info" style="width: 8px; height: 8px; box-shadow: 0 0 5px #0ea5e9;"></span>
+            </div>
+        </div>
+        
+        <div class="p-4 d-flex flex-column align-items-center justify-content-center" style="min-height: 200px;">
+            
+            <div class="d-flex gap-2 mb-2">
+                {% for port in ports %}
+                    {% if port.port_number|divisibleby:2 == False %}
+                        <div class="port-slot {{ port.status }}" title="{{ port.name }} | {% if port.connected_asset %}Bağlı: {{ port.connected_asset.name }}{% else %}Boş{% endif %}" onclick="openPortModal('{{ port.id }}', '{{ port.name }}', '{{ port.status }}', '{{ port.connected_asset_id|default:'' }}', '{{ port.description|escapejs }}')">
+                            <div class="port-led"></div>
+                            <span>{{ port.port_number }}</span>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+            <div class="d-flex gap-2 mt-1">
+                {% for port in ports %}
+                    {% if port.port_number|divisibleby:2 %}
+                        <div class="port-slot {{ port.status }}" title="{{ port.name }} | {% if port.connected_asset %}Bağlı: {{ port.connected_asset.name }}{% else %}Boş{% endif %}" onclick="openPortModal('{{ port.id }}', '{{ port.name }}', '{{ port.status }}', '{{ port.connected_asset_id|default:'' }}', '{{ port.description|escapejs }}')">
+                            <span>{{ port.port_number }}</span>
+                            <div class="port-led bottom"></div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4" style="background-color: var(--card-bg);">
+        <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-3">
+            <h6 class="fw-bold mb-0 text-muted small text-uppercase">Tüm Portların Detaylı Listesi</h6>
+        </div>
+        <div class="card-body p-0 overflow-auto" style="max-height: 500px;">
+            <table class="table table-hover align-middle mb-0 text-center border-top border-secondary-subtle">
+                <thead class="bg-body-tertiary sticky-top border-bottom border-secondary-subtle text-muted small text-uppercase">
+                    <tr>
+                        <th class="py-3 ps-4 border-0">Port</th>
+                        <th class="py-3 text-start border-0">Arayüz Adı</th>
+                        <th class="py-3 border-0">Durum</th>
+                        <th class="py-3 text-start border-0">Zimmetli / Bağlı Cihaz</th>
+                        <th class="py-3 text-start border-0 pe-4">Kablo Açıklaması</th>
+                    </tr>
+                </thead>
+                <tbody class="text-body">
+                    {% for port in ports %}
+                    <tr style="cursor: pointer;" onclick="openPortModal('{{ port.id }}', '{{ port.name }}', '{{ port.status }}', '{{ port.connected_asset_id|default:'' }}', '{{ port.description|escapejs }}')">
+                        <td class="text-muted fw-bold ps-4">{{ port.port_number }}</td>
+                        <td class="text-start font-monospace fw-bold">{{ port.name }}</td>
+                        <td>
+                            {% if port.status == 'up' %}<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-1">UP</span>
+                            {% elif port.status == 'down' %}<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1">DOWN</span>
+                            {% else %}<span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1">DISABLED</span>{% endif %}
+                        </td>
+                        <td class="text-start">
+                            {% if port.connected_asset %}
+                                <span class="fw-bold text-primary"><span class="iconify me-1" data-icon="mdi:laptop"></span>{{ port.connected_asset.name }}</span>
+                            {% else %}
+                                <span class="text-muted small">Bağlı cihaz yok</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-start pe-4 text-muted small">{{ port.description|default:"-" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<div class="modal fade" id="portEditModal" tabindex="-1" aria-hidden="true" data-bs-theme="light">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-body border-secondary-subtle shadow-lg rounded-4">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold text-primary d-flex align-items-center">
+                    <span class="bg-primary bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4" data-icon="mdi:ethernet-cable"></span></span>
+                    Port Bağlantısını Düzenle
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-body admin-forms">
+                
+                <div class="mb-4 p-3 bg-body-tertiary rounded-3 border border-secondary-subtle shadow-sm">
+                    <small class="text-muted fw-bold d-block mb-1">Seçilen Arayüz:</small>
+                    <strong id="modal_port_name" class="text-body font-monospace fs-5"></strong>
+                </div>
+      
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="port_id" id="modal_port_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Port Durumu</label>
+                        <select name="status" id="modal_port_status" class="form-select bg-body-tertiary text-body border-secondary-subtle fw-bold">
+                            <option value="up" class="text-success">🟢 Aktif</option>
+                            <option value="down" class="text-danger">🔴 Boş</option>
+                            <option value="disabled" class="text-secondary">⚫ Kapalı</option>
+                        </select>
+                    </div>
+      
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted">Bağlı Cihaz</label>
+                        <select name="connected_asset" id="modal_connected_asset" class="form-select bg-body-tertiary text-body border-secondary-subtle">
+                            <option value="">-- Cihaz Bağlı Değil --</option>
+                            {% for asset in assets %}
+                                <option value="{{ asset.id }}">{{ asset.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-bold small text-muted">Kablo / Duvar Prizi Açıklaması</label>
+                        <input type="text" name="description" id="modal_port_desc" class="form-control bg-body-tertiary text-body border-secondary-subtle" placeholder="Kat 2, Muhasebe Odası Priz-05">
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm rounded-3 py-2">
+                        <span class="iconify me-1 align-text-bottom" data-icon="mdi:content-save-edit-outline"></span>Bağlantıyı Kaydet
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* SANAL SWITCH CSS GÖRSELLEŞTİRMESİ */
+    .port-slot {
+        width: 44px;
+        height: 44px;
+        background-color: #1e293b;
+        border: 2px solid #475569;
+        border-radius: 4px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
+        box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
+    }
+    
+    .port-slot span {
+        font-family: monospace;
+        font-weight: bold;
+        font-size: 0.75rem;
+        color: #94a3b8;
+        user-select: none;
+    }
+    
+    .port-led {
+        width: 8px;
+        height: 4px;
+        border-radius: 2px;
+        background-color: #475569;
+        position: absolute;
+        top: 4px;
+    }
+    .port-led.bottom {
+        top: auto;
+        bottom: 4px;
+    }
+
+    /* Hover Efekti */
+    .port-slot:hover {
+        transform: scale(1.15);
+        z-index: 10;
+        border-color: #94a3b8;
+        box-shadow: 0 0 15px rgba(255,255,255,0.1);
+    }
+
+    /* Up (Aktif) Durumu */
+    .port-slot.up {
+        border-color: #10b981;
+        background-color: rgba(16, 185, 129, 0.05);
+    }
+    .port-slot.up span { color: #10b981; }
+    .port-slot.up .port-led {
+        background-color: #10b981;
+        box-shadow: 0 0 8px #10b981;
+        animation: blink 2s infinite;
+    }
+
+    /* Down (Boş) Durumu */
+    .port-slot.down { border-color: #ef4444; }
+    .port-slot.down span { color: #ef4444; }
+
+    /* Disabled (Kapalı) Durumu */
+    .port-slot.disabled {
+        background-color: #000;
+        border-color: #334155;
+        opacity: 0.7;
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+
+    .admin-forms input.form-control, .admin-forms select.form-select {
+        background-color: var(--main-bg) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 8px;
+        padding: 10px 14px;
+        transition: all 0.2s ease;
+    }
+    .admin-forms input:focus, .admin-forms select:focus {
+        border-color: #0ea5e9 !important;
+        box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.15) !important;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openPortModal(id, name, status, assetId, desc) {
+        document.getElementById('modal_port_id').value = id;
+        document.getElementById('modal_port_name').innerText = name;
+        document.getElementById('modal_port_status').value = status;
+        document.getElementById('modal_connected_asset').value = assetId;
+        document.getElementById('modal_port_desc').value = desc;
+        
+        var myModal = new bootstrap.Modal(document.getElementById('portEditModal'));
+        myModal.show();
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}NetArchitect - Raporlama Merkezi{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1 text-white">Raporlama Merkezi</h4>
+            <p class="text-muted small mb-0">Sistem verilerini, denetim izlerini ve performans çıktılarını tek bir merkezden PDF olarak dışa aktarın.</p>
+        </div>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-xl-8 col-lg-10">
+            <div class="card shadow-lg border-0 rounded-4" style="background-color: var(--card-soc-bg); border: 1px solid var(--border-soc) !important;">
+                <div class="card-header border-bottom border-secondary p-4" style="border-color: var(--border-soc) !important;">
+                    <h5 class="mb-0 text-white fw-bold d-flex align-items-center">
+                        <span class="iconify fs-3 text-info me-2" data-icon="mdi:file-chart-outline"></span> 
+                        Özel Rapor Oluşturucu
+                    </h5>
+                </div>
+                
+                <div class="card-body p-5">
+                    <form method="POST" action="{% url 'reporting_hub' %}" class="needs-validation">
+                        {% csrf_token %}
+                        
+                        <div class="mb-4">
+                            <label class="form-label text-muted fw-bold small text-uppercase tracking-wide mb-3">1. Rapor Türünü Seçin</label>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <input type="radio" class="btn-check" name="report_type" id="report_ticket" value="ticket_performance" checked>
+                                    <label class="btn btn-outline-info w-100 p-3 text-start rounded-3 d-flex align-items-center" for="report_ticket" style="border-color: var(--border-soc);">
+                                        <div class="bg-info bg-opacity-10 text-info rounded p-2 me-3">
+                                            <span class="iconify fs-3" data-icon="mdi:ticket-confirmation"></span>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-white mb-1">Bilet & Performans Raporu</div>
+                                            <div class="small text-muted" style="font-size: 0.75rem;">ITIL SLA İhlalleri, Çözüm Süreleri</div>
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <input type="radio" class="btn-check" name="report_type" id="report_audit" value="audit_log">
+                                    <label class="btn btn-outline-warning w-100 p-3 text-start rounded-3 d-flex align-items-center" for="report_audit" style="border-color: var(--border-soc);">
+                                        <div class="bg-warning bg-opacity-10 text-warning rounded p-2 me-3">
+                                            <span class="iconify fs-3" data-icon="mdi:shield-search"></span>
+                                        </div>
+                                        <div>
+                                            <div class="fw-bold text-white mb-1">ISO/KVKK Denetim Raporu</div>
+                                            <div class="small text-muted" style="font-size: 0.75rem;">Oturumlar, Konfigürasyon Logları</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-5">
+                            <label class="form-label text-muted fw-bold small text-uppercase tracking-wide mb-3">2. Tarih Aralığını Belirleyin</label>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent text-muted" style="border-color: var(--border-soc);"><span class="iconify" data-icon="mdi:calendar-start"></span></span>
+                                        <input type="date" class="form-control bg-transparent text-white" name="start_date" required style="border-color: var(--border-soc);">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="input-group">
+                                        <span class="input-group-text bg-transparent text-muted" style="border-color: var(--border-soc);"><span class="iconify" data-icon="mdi:calendar-end"></span></span>
+                                        <input type="date" class="form-control bg-transparent text-white" name="end_date" required style="border-color: var(--border-soc);">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary btn-lg fw-bold rounded-pill shadow-sm d-flex align-items-center justify-content-center">
+                                <span class="iconify fs-4 me-2" data-icon="mdi:file-pdf-box"></span> PDF Raporunu İndir
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Radio butonlar için özel CSS */
+    .btn-check:checked + .btn-outline-info { background-color: rgba(14, 165, 233, 0.1); border-color: #0ea5e9 !important; }
+    .btn-check:checked + .btn-outline-warning { background-color: rgba(245, 158, 11, 0.1); border-color: #f59e0b !important; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); } /* Dark mode date picker */
+</style>
+{% endblock %}

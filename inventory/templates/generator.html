@@ -1,0 +1,330 @@
+{% extends 'base.html' %}
+
+{% block title %}NetArchitect - CLI Konfigürasyon Üretici{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1">Dinamik CLI Üretici</h4>
+            <p class="text-muted small mb-0">Cisco ve Huawei cihazları için sıfırdan kurulum komutlarını anında oluşturun.</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        
+        <div class="col-md-5 col-xl-4 d-flex flex-column gap-4">
+            
+            <div class="card border-0 shadow-sm rounded-4 flex-grow-1" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-2">
+                    <div class="d-flex align-items-center">
+                        <span class="bg-primary bg-opacity-10 text-primary rounded p-2 me-3 d-flex">
+                            <span class="iconify fs-4" data-icon="mdi:cog-outline"></span>
+                        </span>
+                        <h6 class="fw-bold mb-0">Cihaz Parametreleri</h6>
+                    </div>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    
+                    <form method="POST" id="configForm" onsubmit="showGlobalLoading('btnGenerate', 'Komutlar Derleniyor...')">
+                        {% csrf_token %}
+                        
+                        <div class="row mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-2">Üretici</label>
+                                <select name="vendor" class="form-select bg-body-tertiary text-body border-secondary-subtle shadow-sm fs-6 fw-bold" required>
+                                    <option value="cisco" {% if request.POST.vendor == 'cisco' %}selected{% endif %}>Cisco IOS</option>
+                                    <option value="huawei" {% if request.POST.vendor == 'huawei' %}selected{% endif %}>Huawei VRP</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-2">Cihaz Türü</label>
+                                <select name="device_type" class="form-select bg-body-tertiary text-body border-secondary-subtle shadow-sm fs-6 fw-bold" required>
+                                    <option value="switch" {% if request.POST.device_type == 'switch' %}selected{% endif %}>Switch</option>
+                                    <option value="router" {% if request.POST.device_type == 'router' %}selected{% endif %}>Router</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">Cihaz Adı</label>
+                            <input type="text" name="hostname" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm font-monospace" placeholder="Core-Switch-01" value="{{ request.POST.hostname }}" required>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-4">
+                                <label class="form-label text-muted small fw-bold mb-1">VLAN ID</label>
+                                <input type="number" name="vlan_id" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm font-monospace" placeholder="10" value="{{ request.POST.vlan_id }}" required>
+                            </div>
+                            <div class="col-8">
+                                <label class="form-label text-muted small fw-bold mb-1">VLAN Adı</label>
+                                <input type="text" name="vlan_name" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm font-monospace" placeholder="MUHASEBE" value="{{ request.POST.vlan_name }}" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-4 border-bottom border-secondary-subtle pb-4">
+                            <label class="form-label text-muted small fw-bold mb-1">Arayüz</label>
+                            <input type="text" name="interface_name" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm font-monospace" placeholder="GigabitEthernet0/1" value="{{ request.POST.interface_name }}" required>
+                        </div>
+
+                        <div class="d-flex align-items-center mb-3">
+                            <span class="iconify me-2 fs-5 text-info" data-icon="mdi:rocket-launch"></span>
+                            <h6 class="text-body fw-bold small mb-0">Gelişmiş Protokoller</h6>
+                        </div>
+                        
+                        <div class="form-check form-switch mb-2 p-2 bg-body-tertiary rounded-3 border border-secondary-subtle d-flex align-items-center shadow-sm">
+                            <input class="form-check-input ms-0 mt-0" type="checkbox" id="enable_ospf" name="enable_ospf" value="yes" onchange="toggleOspf()" {% if request.POST.enable_ospf %}checked{% endif %}>
+                            <label class="form-check-label fw-bold text-success small ms-2" for="enable_ospf">OSPF Yönlendirme</label>
+                        </div>
+                        <div id="ospf_fields" style="display: {% if request.POST.enable_ospf %}block{% else %}none{% endif %};" class="p-3 border border-secondary-subtle rounded-3 bg-body-tertiary mb-3 shadow-sm">
+                            <label class="form-label small fw-bold text-muted mb-1">Network & Wildcard Mask</label>
+                            <input type="text" name="ospf_network" class="form-control form-control-sm mb-2 font-monospace bg-body text-body border-secondary-subtle" placeholder="192.168.1.0 0.0.0.255" value="{{ request.POST.ospf_network }}">
+                            <label class="form-label small fw-bold text-muted mb-1">OSPF Area ID</label>
+                            <input type="number" name="ospf_area" class="form-control form-control-sm font-monospace bg-body text-body border-secondary-subtle" placeholder="0" value="{{ request.POST.ospf_area|default:'0' }}">
+                        </div>
+
+                        <div class="form-check form-switch mb-3 p-2 bg-body-tertiary rounded-3 border border-secondary-subtle d-flex align-items-center shadow-sm">
+                            <input class="form-check-input ms-0 mt-0" type="checkbox" id="enable_port_security" name="enable_port_security" value="yes" onchange="togglePortSecurity()" {% if request.POST.enable_port_security %}checked{% endif %}>
+                            <label class="form-check-label fw-bold text-danger small ms-2" for="enable_port_security">Port Security</label>
+                        </div>
+                        <div id="port_security_fields" style="display: {% if request.POST.enable_port_security %}block{% else %}none{% endif %};" class="p-3 border border-secondary-subtle rounded-3 bg-body-tertiary mb-4 shadow-sm">
+                            <label class="form-label small fw-bold text-muted mb-1">Maksimum MAC Limiti</label>
+                            <input type="number" name="mac_limit" class="form-control form-control-sm font-monospace bg-body text-body border-secondary-subtle" placeholder="2" value="{{ request.POST.mac_limit|default:'1' }}">
+                        </div>
+
+                        <div class="d-flex flex-column gap-2">
+                            <button type="submit" name="action" value="generate" id="btnGenerate" class="btn btn-primary fw-bold shadow-sm py-2 rounded-3">
+                                <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:code-tags"></span>Ekranda Üret
+                            </button>
+                            
+                            <div class="d-flex gap-2 mt-1">
+                                <button type="submit" name="action" value="download_cfg" class="btn btn-outline-info flex-fill fw-medium shadow-sm py-2 rounded-3 border-secondary-subtle text-body">
+                                    <span class="iconify fs-5 align-text-bottom me-1 text-info" data-icon="mdi:file-document-outline"></span>.CFG İndir
+                                </button>
+                                
+                                <button type="submit" name="action" value="download_json" class="btn btn-outline-warning flex-fill fw-medium shadow-sm py-2 rounded-3 border-secondary-subtle text-body">
+                                    <span class="iconify fs-5 align-text-bottom me-1 text-warning" data-icon="mdi:code-json"></span>.JSON İndir
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                </div>
+            </div>
+
+        </div>
+
+        <div class="col-md-7 col-xl-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100 overflow-hidden terminal-card">
+                
+                <div class="card-header border-0 py-3 px-4 d-flex justify-content-between align-items-center" style="background-color: #1e293b;">
+                    <div class="d-flex gap-2">
+                        <span class="rounded-circle" style="width: 12px; height: 12px; background-color: #ef4444;"></span>
+                        <span class="rounded-circle" style="width: 12px; height: 12px; background-color: #f59e0b;"></span>
+                        <span class="rounded-circle" style="width: 12px; height: 12px; background-color: #10b981;"></span>
+                    </div>
+                    <span class="text-white-50 small fw-bold font-monospace" style="letter-spacing: 1px;">NetArchitect Console</span>
+                    <div>
+                        {% if generated_config %}
+                        <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-medium border-secondary text-white" id="copyConfigBtn">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:content-copy"></span> Kopyala
+                        </button>
+                        {% else %}
+                        <span style="width: 70px; display:inline-block;"></span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="card-body p-0 position-relative d-flex flex-column" style="background-color: #0f172a; min-height: 500px;">
+                    
+                    {% if messages %}
+                        <div class="p-3">
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} fw-bold small shadow-sm border-0 mb-2 py-2">
+                                <span class="iconify me-1 fs-5 align-text-bottom" data-icon="mdi:information-outline"></span>{{ message }}
+                            </div>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    {% if generated_config %}
+                        <pre class="m-0 px-4 pt-4 pb-2 font-monospace text-light overflow-auto flex-grow-1" id="configOutput" style="font-size: 0.9rem;">
+<span class="text-success">! ========================================================</span>
+<span class="text-success">! NetArchitect Otomatik Konfigürasyon Üretici</span>
+<span class="text-success">! Üretim Zamanı: {% now "d M Y H:i" %}</span>
+<span class="text-success">! ========================================================</span>
+
+{{ generated_config }}
+                        </pre>
+                        
+                        <div class="p-3 mt-auto d-flex flex-wrap align-items-center justify-content-end gap-2 border-top" style="border-color: rgba(255,255,255,0.1) !important; background-color: rgba(0,0,0,0.2);">
+                            <button class="btn btn-light btn-sm fw-bold shadow-sm rounded-3 px-3 py-2 text-dark" onclick="downloadTxt()">
+                                <span class="iconify me-1 align-text-bottom" data-icon="mdi:download"></span>.txt Kaydet
+                            </button>
+                            <button type="button" class="btn btn-danger btn-sm fw-bold shadow-sm rounded-3 px-3 py-2 ms-2" data-bs-toggle="modal" data-bs-target="#sshModal">
+                                <span class="iconify me-1 fs-5 align-text-bottom" data-icon="mdi:lightning-bolt"></span>Cihaza SSH ile İlet
+                            </button>
+                        </div>
+                    {% else %}
+                        <div class="d-flex flex-column justify-content-center align-items-center h-100 flex-grow-1 text-center p-5">
+                            <span class="iconify text-white-50 mb-3" data-icon="mdi:console" style="font-size: 4rem; opacity: 0.2;"></span>
+                            <p class="text-white-50 font-monospace mb-0 fs-5">root@netarchitect:~$_ <span class="cursor-blink text-success">|</span></p>
+                            <p class="text-white-50 small mt-3 opacity-50" style="max-width: 400px;">Sistemi yapılandırmak için sol taraftan parametreleri girip "Ekranda Üret" butonuna basın veya doğrudan .CFG/.JSON olarak indirin.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<div class="modal fade" id="sshModal" tabindex="-1" aria-labelledby="sshModalLabel" aria-hidden="true" data-bs-theme="dark">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-body border-secondary-subtle shadow-lg rounded-4">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold text-danger d-flex align-items-center" id="sshModalLabel">
+            <span class="bg-danger bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4" data-icon="mdi:lightning-bolt"></span></span>
+            Otomatik SSH Push
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4 text-body">
+        <p class="small text-muted mb-4 pb-3 border-bottom border-secondary-subtle">
+            Ürettiğiniz konfigürasyon kodları ağdaki fiziksel cihaza arka planda güvenli bir şekilde iletilecektir. Lütfen cihaz kimlik bilgilerini girin.
+        </p>
+        
+        <form method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="push_config">
+            <input type="hidden" name="vendor" id="hidden_vendor">
+            <input type="hidden" name="device_type" id="hidden_device_type">
+            <input type="hidden" name="hostname" id="hidden_hostname">
+            <input type="hidden" name="vlan_id" id="hidden_vlan_id">
+            <input type="hidden" name="vlan_name" id="hidden_vlan_name">
+            <input type="hidden" name="interface_name" id="hidden_interface_name">
+            <input type="hidden" name="enable_ospf" id="hidden_enable_ospf">
+            <input type="hidden" name="ospf_network" id="hidden_ospf_network">
+            <input type="hidden" name="ospf_area" id="hidden_ospf_area">
+            <input type="hidden" name="enable_port_security" id="hidden_enable_port_security">
+            <input type="hidden" name="mac_limit" id="hidden_mac_limit">
+            
+            <div class="mb-4">
+                <label class="form-label fw-bold small text-muted">Hedef Cihaz IP Adresi</label>
+                <input type="text" name="target_ip" class="form-control form-control-lg bg-body-tertiary text-body border-secondary-subtle shadow-sm font-monospace fs-6" placeholder="192.168.1.10" required>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <label class="form-label fw-bold small text-muted">SSH Kullanıcı Adı</label>
+                    <input type="text" name="ssh_user" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm" placeholder="admin" required>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <label class="form-label fw-bold small text-muted">SSH Şifresi</label>
+                    <input type="password" name="ssh_pass" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm" placeholder="******" required>
+                </div>
+                
+                <div class="col-md-4 mb-4">
+                    <label class="form-label fw-bold small text-muted">Enable Şifresi (Secret)</label>
+                    <input type="password" name="enable_secret" class="form-control bg-body-tertiary text-body border-secondary-subtle shadow-sm border-danger-subtle" placeholder="Opsiyonel">
+                </div>
+            </div>
+            
+            <button type="submit" id="btnPush" class="btn btn-danger w-100 fw-bold py-2 shadow-sm rounded-3 mt-2" onclick="syncForms(); showGlobalLoading('btnPush', 'SSH ile İletiliyor...');">
+                <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:rocket-launch-outline"></span>Kodları Cihaza Ateşle
+            </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+    /* Terminal Animasyonları ve Stilleri */
+    .terminal-card { border: 1px solid #334155 !important; }
+    .cursor-blink { animation: blink 1s step-end infinite; }
+    @keyframes blink { 50% { opacity: 0; } }
+    
+    #configOutput {
+        color: #e2e8f0; 
+        line-height: 1.6;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 1. Arayüzleri Göster/Gizle
+    function toggleOspf() {
+        document.getElementById('ospf_fields').style.display = document.getElementById('enable_ospf').checked ? 'block' : 'none';
+    }
+    function togglePortSecurity() {
+        document.getElementById('port_security_fields').style.display = document.getElementById('enable_port_security').checked ? 'block' : 'none';
+    }
+
+    // 2. Kodu Kopyala (İkon Değişim Animasyonlu)
+    document.addEventListener("DOMContentLoaded", function() {
+        const copyBtn = document.getElementById('copyConfigBtn');
+        if(copyBtn) {
+            copyBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                const textToCopy = document.getElementById('configOutput').innerText;
+                
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    const originalHtml = this.innerHTML;
+                    this.innerHTML = '<span class="iconify me-1 align-text-bottom" data-icon="mdi:check-bold"></span> Kopyalandı';
+                    this.classList.replace('btn-outline-light', 'btn-success');
+                    this.classList.replace('text-white', 'text-white');
+                    this.classList.remove('border-secondary');
+                    
+                    setTimeout(() => {
+                        this.innerHTML = originalHtml;
+                        this.classList.replace('btn-success', 'btn-outline-light');
+                        this.classList.add('border-secondary');
+                    }, 2000);
+                });
+            });
+        }
+    });
+
+    // 3. txt İndir (Tarayıcı üzerinden çalışır)
+    function downloadTxt() {
+        const text = document.getElementById('configOutput').innerText;
+        const filename = "NetArchitect_Device_Config.txt"; 
+        const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    // 4. Form Senkronizasyonu (Modal içindeki hidden inputlara verileri kopyalar)
+    function syncForms() {
+        document.getElementById('hidden_vendor').value = document.querySelector('[name="vendor"]').value;
+        document.getElementById('hidden_device_type').value = document.querySelector('[name="device_type"]').value;
+        document.getElementById('hidden_hostname').value = document.querySelector('[name="hostname"]').value;
+        document.getElementById('hidden_vlan_id').value = document.querySelector('[name="vlan_id"]').value;
+        document.getElementById('hidden_vlan_name').value = document.querySelector('[name="vlan_name"]').value;
+        document.getElementById('hidden_interface_name').value = document.querySelector('[name="interface_name"]').value;
+
+        if (document.getElementById('enable_ospf').checked) {
+            document.getElementById('hidden_enable_ospf').value = "yes";
+            document.getElementById('hidden_ospf_network').value = document.querySelector('[name="ospf_network"]').value;
+            document.getElementById('hidden_ospf_area').value = document.querySelector('[name="ospf_area"]').value;
+        } else {
+            document.getElementById('hidden_enable_ospf').value = "";
+        }
+        
+        if (document.getElementById('enable_port_security').checked) {
+            document.getElementById('hidden_enable_port_security').value = "yes";
+            document.getElementById('hidden_mac_limit').value = document.querySelector('[name="mac_limit"]').value;
+        } else {
+            document.getElementById('hidden_enable_port_security').value = "";
+        }
+    }
+</script>
+{% endblock %}

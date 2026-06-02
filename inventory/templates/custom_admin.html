@@ -1,0 +1,703 @@
+{% extends 'base.html' %}
+
+{% block title %}NetArchitect - Sistem Yönetim Paneli{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    
+    {% if messages %}
+        <div class="mb-4">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm fw-medium border-0 rounded-4 d-flex align-items-center" role="alert">
+                <span class="iconify me-2 fs-4" data-icon="mdi:information-outline"></span> {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1">Sistem Yönetim Paneli</h4>
+            <p class="text-muted small mb-0">Cihaz, kullanıcı, destek talepleri ve konfigürasyon değişiklikleri yönetim ekranı.</p>
+        </div>
+    </div>
+
+    <div class="row g-4 admin-forms mb-5">
+        
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-2">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center">
+                        <span class="bg-primary bg-opacity-10 text-primary rounded p-2 me-3"><span class="iconify fs-5" data-icon="mdi:server-network"></span></span>
+                        Yeni Cihaz Ekle
+                    </h6>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">{{ device_form.name.label }}</label>
+                            {{ device_form.name }}
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ device_form.device_type.label }}</label>
+                                {{ device_form.device_type }}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ device_form.vendor.label }}</label>
+                                {{ device_form.vendor }}
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ device_form.parent_device.label }}</label>
+                                {{ device_form.parent_device }}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ device_form.mac_address.label }}</label>
+                                {{ device_form.mac_address }}
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-body-tertiary rounded-3 border border-secondary-subtle mb-3 shadow-sm">
+                            <label class="fw-bold small text-muted mb-2 d-block"><span class="iconify align-text-bottom me-1 text-danger" data-icon="mdi:chart-bell-curve"></span> Zabbix İzleme (Eşik Değerleri)</label>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.cpu_alarm_threshold.label }}</label>
+                                    {{ device_form.cpu_alarm_threshold }}
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.ram_alarm_threshold.label }}</label>
+                                    {{ device_form.ram_alarm_threshold }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-3 bg-body-tertiary rounded-3 border border-secondary-subtle mb-3 shadow-sm">
+                            <label class="fw-bold small text-muted mb-2 d-block"><span class="iconify align-text-bottom me-1 text-primary" data-icon="mdi:server"></span> Veri Merkezi Konumu</label>
+                            <div class="mb-2">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ device_form.rack_name.label }}</label>
+                                {{ device_form.rack_name }}
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.position_u.label }}</label>
+                                    {{ device_form.position_u }}
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.height_u.label }}</label>
+                                    {{ device_form.height_u }}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 bg-body-tertiary rounded-3 border border-secondary-subtle mb-3 shadow-sm">
+                            <label class="fw-bold small text-muted mb-2 d-block"><span class="iconify align-text-bottom me-1" data-icon="mdi:ssh"></span> SSH ve Otomasyon Bilgileri</label>
+                            <div class="row g-2 mb-2">
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.ssh_user.label }}</label>
+                                    {{ device_form.ssh_user }}
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ device_form.ssh_password.label }}</label>
+                                    {{ device_form.ssh_password }}
+                                </div>
+                            </div>
+                            <div>
+                                <label class="form-label text-muted small fw-bold mb-1">Enable Şifresi</label>
+                                <input type="password" name="enable_password" class="form-control form-control-sm border-secondary-subtle" placeholder="İsteğe bağlı">
+                            </div>
+                        </div>
+
+                        <div class="form-check form-switch mb-4 p-2 bg-body-tertiary rounded-3 border border-secondary-subtle d-flex align-items-center shadow-sm">
+                            {{ device_form.is_active }}
+                            <label class="form-check-label fw-bold text-body ms-2 small" for="{{ device_form.is_active.id_for_label }}">Cihaz Aktif Mi?</label>
+                        </div>
+                        <button type="submit" name="submit_device" id="btnDevice" class="btn btn-primary w-100 fw-bold shadow-sm rounded-3 py-2" onclick="showGlobalLoading('btnDevice', 'Kaydediliyor...')">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:content-save-outline"></span> Cihazı Kaydet
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-6">
+            <div class="card border-0 shadow-sm rounded-4 h-100" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-2">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center">
+                        <span class="bg-danger bg-opacity-10 text-danger rounded p-2 me-3"><span class="iconify fs-5" data-icon="mdi:ticket-outline"></span></span>
+                        Manuel Destek Kaydı
+                    </h6>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.title.label }}</label>
+                            {{ ticket_form.title }}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.description.label }}</label>
+                            {{ ticket_form.description }}
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.priority.label }}</label>
+                                {{ ticket_form.priority }}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.category.label }}</label>
+                                {{ ticket_form.category }}
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-4">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.device.label }}</label>
+                                {{ ticket_form.device }}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-1">{{ ticket_form.status.label }}</label>
+                                {{ ticket_form.status }}
+                            </div>
+                        </div>
+                        <button type="submit" name="submit_ticket" id="btnTicket" class="btn btn-danger w-100 fw-bold shadow-sm rounded-3 py-2" onclick="showGlobalLoading('btnTicket', 'Kayıt Oluşturuluyor...')">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:ticket-confirmation-outline"></span> Kaydı Oluştur
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4 col-md-12 d-flex flex-column gap-4">
+            <div class="card border-0 shadow-sm rounded-4 flex-grow-1" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-2">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center">
+                        <span class="bg-success bg-opacity-10 text-success rounded p-2 me-3"><span class="iconify fs-5" data-icon="mdi:account-plus-outline"></span></span>
+                        Yeni Kullanıcı Ekle
+                    </h6>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <form method="POST">
+                        {% csrf_token %}
+                        {% for field in user_form %}
+                            <div class="mb-3 {% if field.name == 'is_staff' %}form-check form-switch mt-4 p-3 bg-body-tertiary rounded-3 border border-secondary-subtle d-flex align-items-center shadow-sm{% endif %}">
+                                {% if field.name != 'is_staff' %}
+                                    <label class="form-label text-muted small fw-bold mb-1">{{ field.label }}</label>
+                                {% endif %}
+                                {{ field }}
+                                {% if field.name == 'is_staff' %}
+                                    <label class="form-check-label fw-bold text-body ms-2 small" for="{{ field.id_for_label }}">Yönetici Yetkisi</label>
+                                {% endif %}
+                                {% if field.errors %}
+                                    <div class="text-danger small mt-1 fw-bold"><span class="iconify me-1" data-icon="mdi:alert-circle"></span>{{ field.errors|striptags }}</div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <button type="submit" name="submit_user" id="btnUser" class="btn btn-success w-100 fw-bold mt-2 shadow-sm rounded-3 py-2 text-white" onclick="showGlobalLoading('btnUser', 'Kaydediliyor...')">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:account-check-outline"></span> Kullanıcıyı Kaydet
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card border border-info shadow-sm rounded-4" style="background-color: var(--card-bg);">
+                <div class="card-body p-3 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <span class="iconify fs-1 text-info me-3 opacity-75" data-icon="mdi:microsoft-windows"></span>
+                        <div>
+                            <h6 class="fw-bold mb-0">Active Directory Senkronizasyonu</h6>
+                            <small class="text-muted">LDAP sunucusundan kullanıcıları çekin.</small>
+                        </div>
+                    </div>
+                    <form method="POST" action="{% url 'sync_ad_users' %}" class="m-0">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-info fw-bold shadow-sm rounded-pill px-3 py-1" onclick="showGlobalLoading('btnAdSync', 'Bağlanılıyor...')">Senkronize Et</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-12">
+            <div class="card border border-info shadow-sm rounded-4" style="background-color: var(--card-bg);">
+                <div class="card-header bg-info bg-opacity-10 border-bottom-0 pt-4 px-4 pb-3">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center text-info">
+                        <span class="iconify fs-4 me-2" data-icon="mdi:shield-check-outline"></span> 
+                        Değişiklik Yönetimi
+                    </h6>
+                    <p class="text-muted small mb-0 mt-1">Sistem üzerinden cihaza gönderilmek istenen komutlar güvenlik gereği onayınıza sunulmuştur.</p>
+                </div>
+                <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0 text-center border-top border-info-subtle">
+                        <thead class="bg-body-tertiary sticky-top text-muted small text-uppercase">
+                            <tr>
+                                <th class="py-3 ps-4 border-0 text-start">Talep Başlığı / IP</th>
+                                <th class="py-3 border-0">Talep Eden</th>
+                                <th class="py-3 border-0">Durum</th>
+                                <th class="py-3 pe-4 text-end border-0">Gözden Geçir</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-body">
+                            {% for req in change_requests %}
+                            <tr>
+                                <td class="text-start ps-4 py-3">
+                                    <div class="fw-bold">{{ req.title }}</div>
+                                    <small class="text-muted font-monospace"><span class="iconify" data-icon="mdi:lan-connect"></span> Hedef IP: {{ req.target_ip }}</small>
+                                </td>
+                                <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-1"><span class="iconify me-1" data-icon="mdi:account"></span>{{ req.requester.username }}</span></td>
+                                <td>
+                                    {% if req.status == 'pending' %}<span class="badge bg-warning text-dark rounded-pill px-3 pulse-animation">Onay Bekliyor</span>
+                                    {% elif req.status == 'approved' %}<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Onaylandı</span>
+                                    {% else %}<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3">Reddedildi</span>{% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-info text-white fw-bold shadow-sm rounded-pill px-3" onclick="openCABModal('{{ req.id }}', '{{ req.target_ip }}', `{{ req.config_payload|escapejs }}`, '{{ req.status }}', `{{ req.execution_log|default:''|escapejs }}`)">
+                                        <span class="iconify me-1 align-text-bottom" data-icon="mdi:eye-outline"></span> İncele
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-muted py-5 text-center">Onay bekleyen değişiklik talebi bulunmuyor.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-12">
+            
+            <div class="card border-0 shadow-sm rounded-4 mb-5" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-3">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center"><span class="bg-primary bg-opacity-10 text-primary rounded p-1 me-2"><span class="iconify fs-5" data-icon="mdi:router-network"></span></span> Sistemdeki Tüm Cihazlar</h6>
+                </div>
+                <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0 text-center border-top border-secondary-subtle">
+                        <thead class="bg-body-tertiary sticky-top border-bottom border-secondary-subtle text-muted small text-uppercase" style="letter-spacing: 0.5px;">
+                            <tr>
+                                <th class="py-3 ps-4 border-0">ID</th>
+                                <th class="py-3 text-start border-0">Cihaz Adı / Donanım</th>
+                                <th class="py-3 border-0">Tür / Üretici</th>
+                                <th class="py-3 border-0">IP / MAC Adresi</th>
+                                <th class="py-3 border-0">Durum</th>
+                                <th class="py-3 pe-4 text-end border-0">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-body">
+                            {% for d in devices %}
+                            <tr>
+                                <td class="text-muted fw-bold ps-4">#{{ d.id }}</td>
+                                <td class="text-start">
+                                    <div class="fw-bold text-body">{{ d.name }}</div>
+                                    <small class="text-muted d-block mb-1"><span class="iconify opacity-50" data-icon="mdi:arrow-up-right"></span> Üst: {{ d.parent_device.name|default:"Bağımsız" }}</small>
+                                    {% if d.os_version %}
+                                        <small class="text-muted d-block p-1 bg-body-tertiary rounded border border-secondary-subtle mt-1" style="font-size: 0.75rem;">
+                                            <span class="iconify text-info" data-icon="mdi:memory"></span> CPU: %{{ d.cpu_usage }} | RAM: %{{ d.ram_usage }}
+                                            <br> OS: <span class="font-monospace text-primary">{{ d.os_version }}</span>
+                                        </small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle mb-1 px-2 py-1">{{ d.get_device_type_display }}</span><br>
+                                    <small class="text-muted fw-medium">{{ d.get_vendor_display }}</small>
+                                </td>
+                                <td>
+                                    {% for ip in d.ipaddress_set.all %}
+                                        <span class="d-block fw-bold text-info font-monospace">{{ ip.address }}</span>
+                                    {% empty %}
+                                        <span class="text-muted small">IP Yok</span>
+                                    {% endfor %}
+                                    <small class="text-muted font-monospace">{{ d.mac_address|default:"MAC Yok" }}</small>
+                                </td>
+                                <td>
+                                    {% if d.is_active %}<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-1">Aktif</span>
+                                    {% else %}<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1">Pasif</span>{% endif %}
+                                </td>
+                                <td class="text-end pe-4 text-nowrap">
+                                    <form method="POST" class="d-inline-block me-1">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="poll_hardware">
+                                        <input type="hidden" name="device_id" value="{{ d.id }}">
+                                        <button type="submit" class="btn btn-sm btn-light border-secondary-subtle text-info shadow-sm rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Donanım Verisini Güncelle">
+                                            <span class="iconify" data-icon="mdi:cpu-64-bit"></span>
+                                        </button>
+                                    </form>
+                                    {% if d.device_type == 'Switch' or d.device_type == 'Router' %}
+                                    <a href="{% url 'port_mapping' d.id %}" class="btn btn-sm btn-light border-secondary-subtle text-success shadow-sm rounded-circle me-1 d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Fiziksel Port Haritası">
+                                        <span class="iconify" data-icon="mdi:ethernet-cable"></span>
+                                    </a>
+                                    {% endif %}
+                                    
+                                    <a href="{% url 'device_edit' d.id %}" class="btn btn-sm btn-light border-secondary-subtle text-warning shadow-sm me-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Düzenle">
+                                        <span class="iconify" data-icon="mdi:pencil-outline"></span>
+                                    </a>
+                                    <a href="{% url 'device_delete' d.id %}" class="btn btn-sm btn-light border-secondary-subtle text-danger shadow-sm rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Sil">
+                                        <span class="iconify" data-icon="mdi:trash-can-outline"></span>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-muted py-4">Cihaz bulunmuyor.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 mb-5" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-3">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center"><span class="bg-warning bg-opacity-10 text-warning rounded p-1 me-2"><span class="iconify fs-5" data-icon="mdi:ticket-confirmation-outline"></span></span> Aktif Destek Talepleri</h6>
+                </div>
+                <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0 text-center border-top border-secondary-subtle">
+                        <thead class="bg-body-tertiary sticky-top border-bottom border-secondary-subtle text-muted small text-uppercase" style="letter-spacing: 0.5px;">
+                            <tr>
+                                <th class="py-3 ps-4 border-0">ID</th>
+                                <th class="py-3 text-start border-0">Başlık / Kullanıcı</th>
+                                <th class="py-3 border-0">Kategori</th>
+                                <th class="py-3 border-0">Öncelik</th>
+                                <th class="py-3 border-0">Durum</th>
+                                <th class="py-3 border-0 bg-danger bg-opacity-10 text-danger rounded-start-3">Kalan Süre</th>
+                                <th class="py-3 pe-4 text-end border-0">İşlem</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-body">
+                            {% for t in tickets %}
+                            <tr>
+                                <td class="text-muted fw-bold ps-4">#{{ t.id }}</td>
+                                <td class="text-start">
+                                    <div class="fw-bold text-truncate" style="max-width: 200px;" title="{{ t.title }}">{{ t.title }}</div>
+                                    <small class="text-muted"><span class="iconify" data-icon="mdi:account"></span> {{ t.created_by.username|default:"Bilinmiyor" }}</small>
+                                </td>
+                                <td><span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-1">{{ t.get_category_display }}</span></td>
+                                <td>
+                                    {% if t.priority == 'Kritik' %}<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3">Kritik</span>
+                                    {% elif t.priority == 'Yuksek' %}<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Yüksek</span>
+                                    {% elif t.priority == 'Orta' %}<span class="badge bg-info bg-opacity-10 text-info rounded-pill px-3">Orta</span>
+                                    {% else %}<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Düşük</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if t.status == 'Acik' %}<span class="badge bg-primary bg-opacity-10 text-primary border border-primary-subtle px-2 py-1">Açık</span>
+                                    {% elif t.status == 'Inceleniyor' %}<span class="badge bg-warning bg-opacity-10 text-warning border border-warning-subtle px-2 py-1">İnceleniyor</span>
+                                    {% elif t.status == 'Cozuldu' %}<span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2 py-1">Çözüldü</span>
+                                    {% else %}<span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-1">Kapatıldı</span>{% endif %}
+                                </td>
+                                <td>
+                                    {% if t.status == 'Cozuldu' or t.status == 'Kapatildi' %}
+                                        <span class="text-success small fw-bold"><span class="iconify align-text-bottom me-1" data-icon="mdi:check-all"></span>Tamamlandı</span>
+                                    {% else %}
+                                        {% if t.sla_deadline %}
+                                            {% if t.is_sla_breached %}
+                                                <span class="badge bg-danger px-3 py-1 shadow-sm pulse-animation"><span class="iconify align-text-bottom me-1" data-icon="mdi:alarm-light"></span>SLA İHLALİ</span>
+                                            {% else %}
+                                                <span class="text-body fw-bold font-monospace small" data-deadline="{{ t.sla_deadline|date:'c' }}">Hesaplanıyor...</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle px-2 py-1 small">SLA Atanmamış</span>
+                                        {% endif %}
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-light border-secondary-subtle text-warning shadow-sm rounded-pill px-3 fw-medium" title="Durumu Güncelle" onclick="openEditTicketModal('{{ t.id }}', '{{ t.title|escapejs }}', '{{ t.priority }}', '{{ t.status }}')">
+                                        <span class="iconify align-text-bottom me-1" data-icon="mdi:pencil-outline"></span> Düzenle
+                                    </button>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="7" class="text-muted py-4">Sistemde aktif destek talebi bulunmuyor.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm rounded-4 mb-4" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-3">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center"><span class="bg-info bg-opacity-10 text-info rounded p-1 me-2"><span class="iconify fs-5" data-icon="mdi:account-group-outline"></span></span> Sistemdeki Kullanıcılar</h6>
+                </div>
+                <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+                    <table class="table table-hover align-middle mb-0 text-center border-top border-secondary-subtle">
+                        <thead class="bg-body-tertiary sticky-top border-bottom border-secondary-subtle text-muted small text-uppercase" style="letter-spacing: 0.5px;">
+                            <tr>
+                                <th class="py-3 ps-4 border-0">ID</th>
+                                <th class="py-3 border-0 text-start">Kullanıcı Adı</th>
+                                <th class="py-3 border-0">Kayıt Tarihi</th>
+                                <th class="py-3 border-0">Rol</th>
+                                <th class="py-3 pe-4 text-end border-0">İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-body">
+                            {% for u in users %}
+                            <tr>
+                                <td class="text-muted fw-bold ps-4">#{{ u.id }}</td>
+                                <td class="fw-bold text-body text-start">{{ u.username }}</td>
+                                <td class="text-muted small">{{ u.date_joined|date:"d M Y, H:i" }}</td>
+                                <td>
+                                    {% if u.is_superuser %}
+                                        <span class="badge bg-danger bg-opacity-10 border border-danger-subtle text-danger px-3 py-1 rounded-pill">Süper Admin</span>
+                                    {% elif u.is_staff %}
+                                        <span class="badge bg-primary bg-opacity-10 border border-primary-subtle text-primary px-3 py-1 rounded-pill">BT Personeli</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary bg-opacity-10 border border-secondary-subtle text-secondary px-3 py-1 rounded-pill">Standart Kullanıcı</span>
+                                    {% endif %}
+                                </td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-light border-secondary-subtle text-info shadow-sm me-1 rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Yetki Düzenle" onclick="openEditUserModal('{{ u.id }}', '{{ u.username }}', '{{ u.is_staff|yesno:'true,false' }}', '{{ u.is_superuser|yesno:'true,false' }}')">
+                                        <span class="iconify" data-icon="mdi:pencil-outline"></span>
+                                    </button>
+                                    {% if u != request.user %}
+                                    <form method="POST" class="d-inline" onsubmit="return confirm('Kullanıcıyı silmek istediğinize emin misiniz?');">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="delete_user">
+                                        <input type="hidden" name="user_id" value="{{ u.id }}">
+                                        <button type="submit" class="btn btn-sm btn-light border-secondary-subtle text-danger shadow-sm rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Sil">
+                                            <span class="iconify" data-icon="mdi:trash-can-outline"></span>
+                                        </button>
+                                    </form>
+                                    {% else %}
+                                    <button class="btn btn-sm btn-light border-secondary-subtle text-muted disabled shadow-sm rounded-circle d-inline-flex align-items-center justify-content-center" style="width:32px; height:32px; padding:0;" title="Kendinizi silemezsiniz">
+                                        <span class="iconify" data-icon="mdi:shield-account"></span>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" class="text-muted py-4">Kayıtlı kullanıcı bulunmuyor.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserModalLabel" aria-hidden="true" data-bs-theme="light">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-body border-secondary-subtle shadow-lg rounded-4">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-info d-flex align-items-center" id="editUserModalLabel">
+              <span class="bg-info bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4 text-info" data-icon="mdi:account-edit-outline"></span></span>
+              Yetkileri Düzenle
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-body admin-forms">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_user">
+                <input type="hidden" name="user_id" id="edit_user_id">
+                <div class="mb-4">
+                    <label class="form-label fw-bold small text-muted">Kullanıcı Adı</label>
+                    <input type="text" name="username" id="edit_username" class="form-control bg-body-tertiary text-body border-secondary-subtle" required maxlength="32">
+                </div>
+                <div class="p-3 bg-body-tertiary border border-secondary-subtle rounded-3 mb-4 shadow-sm">
+                    <div class="form-check form-switch mb-3 d-flex align-items-center">
+                        <input class="form-check-input ms-0 mt-0" type="checkbox" name="is_staff" id="edit_is_staff">
+                        <div class="ms-2">
+                            <label class="form-check-label fw-bold text-primary small d-block" for="edit_is_staff">BT Personeli</label>
+                            <span class="text-muted" style="font-size: 0.7rem;">Yönetim paneline erişebilir.</span>
+                        </div>
+                    </div>
+                    <hr class="border-secondary-subtle">
+                    <div class="form-check form-switch d-flex align-items-center">
+                        <input class="form-check-input ms-0 mt-0" type="checkbox" name="is_superuser" id="edit_is_superuser">
+                        <div class="ms-2">
+                            <label class="form-check-label fw-bold text-danger small d-block" for="edit_is_superuser">Süper Admin</label>
+                            <span class="text-muted" style="font-size: 0.7rem;">Sistemde tam yetkiye sahiptir.</span>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" id="btnUpdateUser" class="btn btn-info w-100 fw-bold shadow-sm rounded-3 py-2 text-white" onclick="showGlobalLoading('btnUpdateUser', 'Güncelleniyor...')">
+                    <span class="iconify me-1 align-text-bottom" data-icon="mdi:content-save-edit-outline"></span>Kaydet
+                </button>
+            </form>
+        </div>
+      </div>
+    </div>
+</div>
+
+<div class="modal fade" id="editTicketModal" tabindex="-1" aria-labelledby="editTicketModalLabel" aria-hidden="true" data-bs-theme="light">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content bg-body border-secondary-subtle shadow-lg rounded-4">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-warning d-flex align-items-center" id="editTicketModalLabel">
+              <span class="bg-warning bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4 text-warning" data-icon="mdi:ticket-edit-outline"></span></span>
+              Talebi Güncelle
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-body admin-forms">
+            <div class="mb-4 p-3 bg-body-tertiary rounded-3 border border-secondary-subtle shadow-sm">
+                <small class="text-muted fw-bold d-block mb-1">İşlem Yapılan Talep:</small>
+                <strong id="edit_ticket_title" class="text-body"></strong>
+            </div>
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="edit_ticket">
+                <input type="hidden" name="ticket_id" id="edit_ticket_id">
+                <div class="mb-3">
+                    <label class="form-label fw-bold small text-muted">Öncelik Derecesi</label>
+                    <select name="priority" id="edit_ticket_priority" class="form-select bg-body-tertiary text-body border-secondary-subtle">
+                        <option value="Kritik">🔴 Kritik (4 Saat SLA)</option>
+                        <option value="Yuksek">🟠 Yüksek (8 Saat SLA)</option>
+                        <option value="Orta">🟡 Orta (24 Saat SLA)</option>
+                        <option value="Dusuk">🟢 Düşük (48 Saat SLA)</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-bold small text-muted">Talep Durumu</label>
+                    <select name="status" id="edit_ticket_status" class="form-select bg-body-tertiary text-body border-secondary-subtle">
+                        <option value="Acik">Açık</option>
+                        <option value="Inceleniyor">İnceleniyor</option>
+                        <option value="Cozuldu">Çözüldü</option>
+                        <option value="Kapatildi">Kapatıldı</option>
+                    </select>
+                </div>
+                <button type="submit" id="btnUpdateTicket" class="btn btn-warning w-100 fw-bold shadow-sm rounded-3 py-2 text-dark" onclick="showGlobalLoading('btnUpdateTicket', 'Kaydediliyor...')">
+                    <span class="iconify me-1 align-text-bottom" data-icon="mdi:content-save-edit-outline"></span>Durumu Güncelle
+                </button>
+            </form>
+        </div>
+      </div>
+    </div>
+</div>
+
+<div class="modal fade" id="cabModal" tabindex="-1" aria-hidden="true" data-bs-theme="light">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+      <div class="modal-content bg-body border-info-subtle shadow-lg rounded-4">
+        <div class="modal-header border-0 pb-0">
+          <h5 class="modal-title fw-bold text-info d-flex align-items-center">
+              <span class="bg-info bg-opacity-10 rounded p-2 me-2 d-flex"><span class="iconify fs-4 text-info" data-icon="mdi:shield-search"></span></span>
+              Güvenlik Denetimi: Konfigürasyon İncelemesi
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-4 text-body">
+            
+            <div class="mb-3 d-flex justify-content-between align-items-center bg-body-tertiary p-3 rounded-3 border border-secondary-subtle">
+                <div>
+                    <small class="text-muted fw-bold d-block text-uppercase">Hedef Cihaz (IP)</small>
+                    <span class="font-monospace fw-bold fs-5 text-primary" id="cab_target_ip"></span>
+                </div>
+                <div class="text-end" id="cab_status_badge"></div>
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold small text-muted">Yazılacak Kod (Payload):</label>
+                <textarea id="cab_payload" class="form-control font-monospace bg-dark text-success" rows="8" readonly style="font-size: 0.85rem;"></textarea>
+            </div>
+
+            <div id="cab_log_section" class="mb-4 d-none">
+                <label class="form-label fw-bold small text-muted">Sistem Logu:</label>
+                <div class="p-3 bg-body-tertiary border border-secondary-subtle rounded-3 small text-muted font-monospace" id="cab_log_text"></div>
+            </div>
+  
+            <form method="POST" id="cab_form">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="approve_change">
+                <input type="hidden" name="request_id" id="cab_request_id">
+                
+                <div class="row g-2" id="cab_action_buttons">
+                    <div class="col-6">
+                        <button type="submit" name="decision" value="reject" class="btn btn-outline-danger w-100 fw-bold shadow-sm rounded-3 py-2">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:close-octagon"></span> Reddet (İptal)
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="submit" name="decision" value="approve" class="btn btn-success text-white w-100 fw-bold shadow-sm rounded-3 py-2">
+                            <span class="iconify me-1 align-text-bottom" data-icon="mdi:check-decagram"></span> Onayla ve Uygula
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+      </div>
+    </div>
+</div>
+
+<style>
+    .admin-forms input.form-control, .admin-forms select.form-select, .admin-forms textarea.form-control {
+        background-color: var(--main-bg) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 8px; padding: 10px 14px; transition: all 0.2s ease;
+    }
+    .admin-forms input:focus, .admin-forms select:focus, .admin-forms textarea:focus {
+        border-color: #0ea5e9 !important; box-shadow: 0 0 0 0.2rem rgba(14, 165, 233, 0.15) !important;
+    }
+    tbody tr { transition: background-color 0.2s; }
+    tbody tr:hover { background-color: var(--main-bg) !important; }
+    .pulse-animation { animation: pulse 2s infinite; }
+    @keyframes pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function openEditUserModal(userId, username, isStaff, isSuperuser) {
+        document.getElementById('edit_user_id').value = userId; document.getElementById('edit_username').value = username; document.getElementById('edit_is_staff').checked = (isStaff === 'true'); document.getElementById('edit_is_superuser').checked = (isSuperuser === 'true');
+        new bootstrap.Modal(document.getElementById('editUserModal')).show();
+    }
+
+    function openEditTicketModal(ticketId, title, priority, status) {
+        document.getElementById('edit_ticket_id').value = ticketId; document.getElementById('edit_ticket_title').textContent = title; document.getElementById('edit_ticket_priority').value = priority; document.getElementById('edit_ticket_status').value = status;
+        new bootstrap.Modal(document.getElementById('editTicketModal')).show();
+    }
+
+    function openCABModal(reqId, targetIp, payload, status, log) {
+        document.getElementById('cab_request_id').value = reqId;
+        document.getElementById('cab_target_ip').innerText = targetIp;
+        document.getElementById('cab_payload').value = payload;
+        
+        let badgeHtml = '';
+        const actionButtons = document.getElementById('cab_action_buttons');
+        const logSection = document.getElementById('cab_log_section');
+        
+        if(status === 'pending') {
+            badgeHtml = '<span class="badge bg-warning text-dark px-3 py-1">Onay Bekliyor</span>';
+            actionButtons.classList.remove('d-none');
+            logSection.classList.add('d-none');
+        } else {
+            badgeHtml = status === 'approved' ? '<span class="badge bg-success px-3 py-1">Uygulandı</span>' : '<span class="badge bg-danger px-3 py-1">Reddedildi</span>';
+            actionButtons.classList.add('d-none'); 
+            logSection.classList.remove('d-none');
+            document.getElementById('cab_log_text').innerText = log;
+        }
+        document.getElementById('cab_status_badge').innerHTML = badgeHtml;
+        new bootstrap.Modal(document.getElementById('cabModal')).show();
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+        function updateCountdowns() {
+            const elements = document.querySelectorAll('[data-deadline]');
+            const now = new Date().getTime();
+            elements.forEach(el => {
+                const deadlineStr = el.getAttribute('data-deadline');
+                if(!deadlineStr) return;
+                const distance = new Date(deadlineStr).getTime() - now;
+                if (distance < 0) {
+                    el.innerHTML = '<span class="badge bg-danger px-2 py-1 pulse-animation">SLA İHLALİ</span>';
+                    el.classList.replace('text-body', 'text-danger');
+                } else {
+                    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                    el.style.color = distance < (2 * 60 * 60 * 1000) ? '#f59e0b' : '#0ea5e9';
+                    el.innerHTML = `${hours} Saat, ${minutes} Dk Kaldı`;
+                }
+            });
+        }
+        updateCountdowns(); setInterval(updateCountdowns, 60000);
+    });
+</script>
+{% endblock %}

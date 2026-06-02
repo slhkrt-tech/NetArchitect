@@ -1,0 +1,361 @@
+{% extends 'base.html' %}
+
+{% block title %}NetArchitect - Destek Taleplerim{% endblock %}
+
+{% block content %}
+<link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+
+<div class="container-fluid px-0 mb-5">
+    
+    {% if messages %}
+        <div class="mb-4">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show shadow-sm fw-medium border-0 rounded-4 d-flex align-items-center" role="alert">
+                <span class="iconify me-2 fs-4" data-icon="mdi:information-outline"></span> {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1">Destek ve Talep Merkezi</h4>
+            <p class="text-muted small mb-0">Hızlı hizmet kataloğundan seçim yapabilir veya özel teknik sorunlarınızı bildirebilirsiniz.</p>
+        </div>
+    </div>
+
+    {% if catalog_items %}
+    <div class="mb-5">
+        <h6 class="fw-bold mb-3 d-flex align-items-center text-primary">
+            <span class="bg-primary bg-opacity-10 rounded p-1 me-2"><span class="iconify fs-5" data-icon="mdi:view-grid-plus"></span></span> 
+            Hızlı Hizmet Kataloğu
+        </h6>
+        <div class="row g-3">
+            {% for item in catalog_items %}
+            <div class="col-md-4 col-xl-3">
+                <div class="card border-0 shadow-sm rounded-4 h-100 catalog-card" style="background-color: var(--card-bg); cursor: pointer;" onclick="document.getElementById('catalogForm_{{ item.id }}').submit();">
+                    <div class="card-body p-4 d-flex flex-column align-items-center text-center position-relative">
+                        {% if item.requires_approval %}
+                            <span class="position-absolute top-0 end-0 m-3 iconify text-warning" data-icon="mdi:shield-lock-outline" title="Yönetici Onayı Gerektirir" style="font-size: 1.2rem;"></span>
+                        {% endif %}
+                        <div class="bg-body-tertiary text-primary rounded-circle d-flex align-items-center justify-content-center mb-3 shadow-sm" style="width: 64px; height: 64px;">
+                            <span class="iconify fs-1" data-icon="{{ item.icon }}"></span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-body">{{ item.title }}</h6>
+                        <p class="text-muted small mb-0" style="font-size: 0.75rem;">{{ item.description|truncatechars:60 }}</p>
+                        
+                        <form method="POST" id="catalogForm_{{ item.id }}" class="d-none">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="catalog_request">
+                            <input type="hidden" name="catalog_id" value="{{ item.id }}">
+                        </form>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-md-5 col-xl-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-2">
+                    <div class="d-flex align-items-center">
+                        <span class="bg-info bg-opacity-10 text-info rounded p-2 me-3 d-flex">
+                            <span class="iconify fs-4" data-icon="mdi:comment-question-outline"></span>
+                        </span>
+                        <h6 class="fw-bold mb-0">Manuel Arıza Bildirimi</h6>
+                    </div>
+                </div>
+                <div class="card-body px-4 pb-4">
+                    <form method="POST" id="ticketForm" onsubmit="showGlobalLoading('submitBtn', 'Talep İletiliyor...')">
+                        {% csrf_token %}
+                        <input type="hidden" name="action" value="manual_ticket">
+                        
+                        <div class="mb-3 position-relative">
+                            <label class="form-label text-muted small fw-bold mb-2">{{ form.title.label }}</label>
+                            {{ form.title }}
+                            <div class="text-end mt-1">
+                                <small id="titleCharCount" class="text-info fw-medium" style="font-size: 0.7rem; opacity: 0.7;">0 / 100</small>
+                            </div>
+                            
+                            <div id="kb-suggestions" class="position-absolute w-100 border border-info rounded-3 shadow-lg mt-1 p-0 overflow-hidden" style="display: none; z-index: 1000; background-color: var(--card-bg);">
+                                <div class="bg-info bg-opacity-10 text-info small fw-bold p-2 px-3 border-bottom border-info-subtle">
+                                    <span class="iconify me-1 align-text-bottom fs-5" data-icon="mdi:lightbulb-on-outline"></span> Benzer çözümler bulduk! Baktınız mı?
+                                </div>
+                                <ul id="kb-results-list" class="list-unstyled mb-0 p-2 small">
+                                    </ul>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label text-muted small fw-bold mb-2">{{ form.description.label }}</label>
+                            {{ form.description }}
+                            <div class="text-end mt-1">
+                                <small id="charCount" class="text-info fw-medium" style="font-size: 0.7rem; opacity: 0.7;">0 / 255</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-2">{{ form.category.label }}</label>
+                                {{ form.category }}
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label text-muted small fw-bold mb-2">{{ form.device.label }}</label>
+                                {{ form.device }}
+                            </div>
+                        </div>
+
+                        <input type="hidden" name="priority" value="Orta">
+                        <input type="hidden" name="status" value="Acik">
+                        
+                        <button type="submit" id="submitBtn" class="btn btn-outline-primary border-2 w-100 fw-bold shadow-sm py-2 rounded-3">
+                            <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:send-check-outline"></span>Arıza Bildir
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-7 col-xl-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100" style="background-color: var(--card-bg);">
+                <div class="card-header bg-transparent border-bottom-0 pt-4 px-4 pb-0">
+                    <h6 class="fw-bold mb-0 d-flex align-items-center">
+                        <span class="bg-primary bg-opacity-10 text-primary rounded p-1 me-2"><span class="iconify fs-5" data-icon="mdi:history"></span></span>
+                        Talep Geçmişiniz
+                    </h6>
+                </div>
+                <div class="card-body p-4">
+                    <div class="table-responsive">
+                        <table id="ticketsTable" class="table table-hover align-middle mb-0 w-100 border-top border-secondary-subtle">
+                            <thead class="bg-body-tertiary text-muted small text-uppercase" style="letter-spacing: 0.5px;">
+                                <tr>
+                                    <th class="py-3 ps-3 border-0">Konu ve Cihaz</th>
+                                    <th class="py-3 border-0">Kategori</th>
+                                    <th class="py-3 border-0 text-center">Durum</th>
+                                    <th class="py-3 text-end border-0">İşlem</th>
+                                    <th class="py-3 pe-3 text-end border-0">Tarih</th>
+                                </tr>
+                            </thead>
+                            <tbody class="text-body">
+                                {% for ticket in tickets %}
+                                <tr>
+                                    <td class="ps-3 py-3">
+                                        <div class="fw-bold text-truncate mb-1" style="max-width: 220px;" data-bs-toggle="tooltip" title="{{ ticket.title }}">
+                                            {{ ticket.title }}
+                                        </div>
+                                        <small class="text-muted d-flex align-items-center">
+                                            <span class="iconify me-1" data-icon="mdi:server-network"></span> 
+                                            {{ ticket.device.name|default:"Genel / Bağımsız" }}
+                                        </small>
+                                    </td>
+                                    <td class="py-3">
+                                        <span class="badge bg-info bg-opacity-10 text-info border border-info-subtle px-2 py-1 fw-medium">
+                                            {{ ticket.get_category_display }}
+                                        </span>
+                                    </td>
+                                    <td class="py-3 text-center">
+                                        {% if ticket.status == 'Acik' %}
+                                            <span class="badge bg-primary bg-opacity-10 text-primary rounded-pill px-3 py-1">İşlem Bekliyor</span>
+                                        {% elif ticket.status == 'Inceleniyor' %}
+                                            <span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3 py-1">İnceleniyor</span>
+                                        {% elif ticket.status == 'Cozuldu' %}
+                                            <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-1">Çözüldü</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary bg-opacity-10 text-secondary rounded-pill px-3 py-1">Kapatıldı</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="py-3 text-end">
+                                        <div class="d-inline-flex gap-1">
+                                            <a href="{% url 'ticket_edit' ticket.id %}" class="btn btn-sm btn-outline-warning rounded-circle border-0" title="Düzenle"><span class="iconify" data-icon="mdi:pencil"></span></a>
+                                            <a href="{% url 'ticket_delete' ticket.id %}" class="btn btn-sm btn-outline-danger rounded-circle border-0" title="Sil"><span class="iconify" data-icon="mdi:trash-can-outline"></span></a>
+                                        </div>
+                                    </td>
+                                    <td class="pe-3 py-3 text-end">
+                                        <div class="text-body small fw-medium">{{ ticket.created_at|date:"d M Y" }}</div>
+                                        <small class="text-muted" style="font-size: 0.7rem;">{{ ticket.created_at|date:"H:i" }}</small>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="5" class="text-center py-5">
+                                        <span class="iconify display-1 text-primary opacity-10 mb-3" data-icon="mdi:ticket-off-outline"></span>
+                                        <p class="text-muted fw-medium">Henüz bir destek talebi oluşturmadınız.</p>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Hizmet Kataloğu Kart Hover Efekti */
+    .catalog-card { transition: all 0.2s ease-in-out; border: 2px solid transparent !important; }
+    .catalog-card:hover { transform: translateY(-5px); border-color: #0ea5e9 !important; box-shadow: 0 10px 20px rgba(14, 165, 233, 0.1) !important; }
+    .catalog-card:active { transform: translateY(-2px); }
+
+    /* Form Elemanlarını SaaS Temasına Uyarlama */
+    #ticketForm input, #ticketForm select, #ticketForm textarea {
+        background-color: var(--main-bg) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+    #ticketForm input:focus, #ticketForm select:focus, #ticketForm textarea:focus {
+        border-color: #0ea5e9 !important;
+        box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1) !important;
+        outline: none;
+    }
+
+    /* Akıllı Öneri Kutusu (SaaS Uyumu) */
+    #kb-results-list li { transition: all 0.2s ease; border: 1px solid transparent; }
+    #kb-results-list li:hover { background-color: var(--main-bg); border-color: var(--border-color); }
+    #kb-results-list li a { color: var(--text-main) !important; }
+    #kb-results-list li:hover a { color: #0ea5e9 !important; }
+
+    /* DataTables Stil Giydirmeleri */
+    .dataTables_wrapper .dataTables_length select, 
+    .dataTables_wrapper .dataTables_filter input {
+        background-color: var(--main-bg) !important;
+        border: 1px solid var(--border-color) !important;
+        border-radius: 8px;
+        padding: 4px 8px;
+        color: var(--text-main) !important;
+    }
+    .page-link { 
+        background-color: var(--card-bg) !important; 
+        border-color: var(--border-color) !important; 
+        color: var(--text-main) !important; 
+        border-radius: 8px !important;
+        margin: 0 2px;
+    }
+    .page-item.active .page-link { 
+        background-color: #0ea5e9 !important; 
+        border-color: #0ea5e9 !important; 
+        color: white !important;
+        font-weight: bold;
+    }
+    table.dataTable.no-footer { border-bottom: 0 !important; }
+    tbody tr { transition: background-color 0.2s; }
+    tbody tr:hover { background-color: var(--main-bg) !important; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+
+<script>
+    $(document).ready(function() {
+        // 1. DataTables Başlatma
+        if ($('#ticketsTable tbody tr').length > 1 || !$('#ticketsTable tbody tr td').hasClass('text-center')) {
+            $('#ticketsTable').DataTable({
+                "language": {
+                    "url": "//cdn.datatables.net/plug-ins/1.13.6/i18n/tr.json"
+                },
+                "pageLength": 8,
+                "order": [[ 4, "desc" ]],
+                "responsive": true,
+                "dom": '<"d-flex justify-content-between align-items-center mb-3"lf>rt<"d-flex justify-content-between align-items-center mt-3"ip>'
+            });
+        }
+
+        // 2. Karakter Sayacı (Başlık sınırı 100 olarak güncellendi)
+        function setupCounter(inputId, labelId, maxLen) {
+            const field = $(inputId);
+            const label = $(labelId);
+            
+            if(field.length) {
+                field.attr('maxlength', maxLen);
+                field.on('input', function() {
+                    const length = $(this).val().length;
+                    label.text(`${length} / ${maxLen}`);
+                    
+                    if(length >= (maxLen * 0.9)) {
+                        label.addClass('text-danger').removeClass('text-info');
+                    } else {
+                        label.removeClass('text-danger').addClass('text-info');
+                    }
+                });
+            }
+        }
+
+        setupCounter('#id_title', '#titleCharCount', 100);
+        setupCounter('#id_description', '#charCount', 255);
+        
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl)
+        });
+    });
+
+    // 3. Akıllı Bilgi Bankası Araması
+    document.addEventListener("DOMContentLoaded", function() {
+        const titleInput = document.getElementById("id_title");
+        const suggestionBox = document.getElementById("kb-suggestions");
+        const resultsList = document.getElementById("kb-results-list");
+        
+        let typingTimer;
+        const doneTypingInterval = 500; 
+
+        if (titleInput) {
+            titleInput.addEventListener('keyup', function () {
+                clearTimeout(typingTimer);
+                if (titleInput.value.length >= 3) {
+                    typingTimer = setTimeout(fetchSuggestions, doneTypingInterval);
+                } else {
+                    suggestionBox.style.display = 'none';
+                }
+            });
+            
+            titleInput.addEventListener('focus', function () {
+                if(resultsList.innerHTML !== '') suggestionBox.style.display = 'block';
+            });
+        }
+
+        function fetchSuggestions() {
+            const query = titleInput.value;
+            fetch(`/api/kb-ara/?q=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    resultsList.innerHTML = ''; 
+                    
+                    if (data.results && data.results.length > 0) {
+                        data.results.forEach(article => {
+                            const li = document.createElement('li');
+                            li.className = 'mb-2 p-2 rounded-3';
+                            li.style.cursor = 'pointer';
+                            li.innerHTML = `<a href="{% url 'knowledge_base' %}?q=${query}" class="text-decoration-none d-block">
+                                                <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary-subtle me-2">${article.category}</span> 
+                                                <span class="fw-bold">${article.title}</span>
+                                            </a>`;
+                            resultsList.appendChild(li);
+                        });
+                        suggestionBox.style.display = 'block';
+                    } else {
+                        suggestionBox.style.display = 'none';
+                    }
+                })
+                .catch(error => console.error('KB Fetch Error:', error));
+        }
+        
+        document.addEventListener('click', function(event) {
+            if (suggestionBox && !titleInput.contains(event.target) && !suggestionBox.contains(event.target)) {
+                suggestionBox.style.display = 'none';
+            }
+        });
+    });
+</script>
+{% endblock %}

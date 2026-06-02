@@ -1,0 +1,28 @@
+# --- Python ve Django ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+db.sqlite3
+
+# --- Sanal Ortam (Virtual Environment) ---
+venv/
+env/
+Lib/
+Scripts/
+Include/
+pyvenv.cfg
+
+# --- Güvenlik ve Şifreler ---
+.env
+.env.local
+secret.txt
+
+# --- Medya ve Statik Dosyalar ---
+media/
+staticfiles/
+
+# --- İşletim Sistemi ve IDE ---
+.vscode/
+.idea/
+.DS_Store

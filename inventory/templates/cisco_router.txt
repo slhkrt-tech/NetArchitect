@@ -1,0 +1,17 @@
+! NetArchitect - Cisco Router (Sub-Interface) Konfigürasyonu
+hostname {{ hostname }}
+!
+interface {{ interface_name }}
+ no shutdown
+!
+interface {{ interface_name }}.{{ vlan_id }}
+ description {{ vlan_name }}_AGI
+ encapsulation dot1Q {{ vlan_id }}
+!
+{% if enable_ospf %}
+router ospf 1
+ network {{ ospf_network }} area {{ ospf_area }}
+!
+{% endif %}
+end
+write memory

@@ -1,0 +1,136 @@
+[server]
+# NetArchitect merkez sunucu URL'si
+url = https://netarchitect.example.com
+
+# Probe güvenliği için shared secret key
+# settings.py'deki REMOTE_PROBE_SHARED_SECRET ile eşleşmeli
+shared_secret = netarchitect_probe_secret
+
+# Heartbeat gönderme aralığı (saniye)
+# Probe'un canlı olduğunu merkez sunucuya bildirmek için
+heartbeat_interval = 900
+
+# Veri senkronizasyonu aralığı (saniye)
+# Tarama yapılıp bulduğu IP'ler ve metrikler merkeze aktarılıyor
+sync_interval = 900
+
+[probe]
+# Probe'un tanımlayıcı adı
+name = Ankara-Veri-Merkezi
+
+# Probe'un bulunduğu lokasyon/şube adı
+location = Ankara Veri Merkezi
+
+# Probe tarafından taranacak hedef network (CIDR formatı)
+# Örn: 192.168.1.0/24, 10.0.0.0/16
+target_subnet = 192.168.1.0/24
+
+# Agent yazılım versiyonu
+agent_version = 1.0.0
+
+[network]
+# SSH/SNMP bağlantısı timeout süresi (saniye)
+timeout = 5
+
+# Başarısız bağlantı deneme sayısı
+retries = 2
+
+# ARP taraması yapılsın mı? (scapy gerekli)
+# true: Hızlı ve güvenilir (önerilen)
+# false: Yavaş ICMP ping taraması yapılır
+enable_arp_scan = true
+
+# ICMP ping taraması yapılsın mı? (fallback)
+enable_icmp_ping = true
+
+[ssh]
+# SSH üzerinden cihaz konfigürasyonları toplanacak mı?
+# true: Cisco/Huawei/Juniper cihazlardan config al
+# false: Sadece IP'ler bulunur
+collect_configs = true
+
+# SSH bağlantısı için kullanıcı adı
+username = admin
+
+# SSH bağlantısı için parola
+# Üretim ortamında environment variable kullanılmalı:
+# $ export PROBE_SSH_PASSWORD="your_password"
+password = password123
+
+# SSH port numarası
+port = 22
+
+# Bağlantı timeout süresi (SSH)
+timeout = 10
+
+[logging]
+# Log seviyesi: DEBUG, INFO, WARNING, ERROR, CRITICAL
+level = INFO
+
+# Log dosyası adı
+logfile = probe_agent.log
+
+[schedule]
+# Ağ taramasının yapılacağı saatler (cron formatında)
+# Boş bırakılırsa her periyotta yapılır
+# Örn: 2-22 (saat 2'den 22'ye kadar her saat)
+scan_hours = 
+
+# Haftanın hangi günü derin tarama yapılsın?
+# 0=Pazartesi, 1=Salı, ..., 6=Pazar
+# Boş bırakılırsa her gün yapılır
+deep_scan_day = 
+
+[advanced]
+# SSL sertifikası doğrulaması
+# true: Sertifikayı doğrula (üretim için önerilen)
+# false: Self-signed sertifikaları kabul et (geliştirme için)
+verify_ssl = false
+
+# Proxy ayarları (ihtiyaç duyulması halinde)
+# proxy_url = http://proxy.example.com:8080
+
+# Paralel tarama thread sayısı
+parallel_threads = 4
+
+# Veri paketinin maksimum boyutu (bytes)
+# Sunucuya tek seferde gönderilebilecek maksimum veri
+max_payload_size = 10485760
+
+#===============================================
+# NOTES / NOTLAR
+#===============================================
+# 1. Probe'u Cron ile çalıştırmak:
+#    */15 * * * * /usr/bin/python3 /opt/probe_agent/probe_agent.py
+#
+# 2. Systemd service olarak çalıştırmak:
+#    [Unit]
+#    Description=NetArchitect Remote Probe
+#    After=network.target
+#
+#    [Service]
+#    Type=simple
+#    WorkingDirectory=/opt/probe_agent
+#    ExecStart=/usr/bin/python3 probe_agent.py
+#    Restart=always
+#    RestartSec=10
+#
+#    [Install]
+#    WantedBy=multi-user.target
+#
+# 3. Gerekli Python paketleri:
+#    pip install requests netmiko scapy psutil
+#
+# 4. SSH sertifikası kabul edilmiş cihazlar:
+#    - Cisco IOS/IOS-XE
+#    - Cisco ASA
+#    - Huawei VRP
+#    - Juniper Junos
+#    - Arista EOS
+#
+# 5. Shared Secret'ı güvenli tutun:
+#    Django settings.py'de:
+#    REMOTE_PROBE_SHARED_SECRET = os.environ.get('REMOTE_PROBE_SHARED_SECRET', 'netarchitect_probe_secret')
+#
+#    Sistemde environment variable olarak set edin:
+#    export REMOTE_PROBE_SHARED_SECRET="your_secret_key"

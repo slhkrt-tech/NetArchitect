@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+
+{% block title %}NetArchitect - Config Diff{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1 text-primary d-flex align-items-center">
+                <span class="iconify me-2 fs-3" data-icon="mdi:file-compare"></span> 
+                Konfigürasyon Karşılaştırma
+            </h4>
+            <p class="text-muted small mb-0"><strong>{{ device.name }}</strong> cihazının geçmiş yedekleri arasındaki değişiklikleri denetleyin.</p>
+        </div>
+        <a href="{% url 'device_backup' %}" class="btn btn-outline-secondary btn-sm shadow-sm rounded-pill px-3">
+            <span class="iconify me-1 align-text-bottom" data-icon="mdi:arrow-left"></span> Yedeklere Dön
+        </a>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 mb-4" style="background-color: var(--card-bg);">
+        <div class="card-body p-4">
+            <form method="GET" class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold text-muted mb-1 text-danger">🔴 Referans Yedek (Eski)</label>
+                    <select name="b1" class="form-select bg-body-tertiary border-secondary-subtle font-monospace small">
+                        <option value="">-- Referans Yedeği Seçin --</option>
+                        {% for b in backups %}
+                        <option value="{{ b.id }}" {% if b.id == b1_id %}selected{% endif %}>
+                            {{ b.created_at|date:"d.m.Y H:i:s" }} (ID: {{ b.id }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label small fw-bold text-muted mb-1 text-success">🟢 Karşılaştırılacak Yedek (Yeni)</label>
+                    <select name="b2" class="form-select bg-body-tertiary border-secondary-subtle font-monospace small">
+                        <option value="">-- Yeni Yedeği Seçin --</option>
+                        {% for b in backups %}
+                        <option value="{{ b.id }}" {% if b.id == b2_id %}selected{% endif %}>
+                            {{ b.created_at|date:"d.m.Y H:i:s" }} (ID: {{ b.id }})
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2">
+                        <span class="iconify me-1 align-text-bottom" data-icon="mdi:magnify-scan"></span> Farkı Bul
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if diff_lines %}
+    <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+        <div class="card-header bg-dark border-bottom border-secondary pt-3 px-4 pb-2 d-flex justify-content-between align-items-center">
+            <h6 class="text-light font-monospace small mb-0"><span class="iconify text-warning me-2" data-icon="mdi:console"></span>Diff Analyzer Engine</h6>
+            <span class="badge bg-secondary bg-opacity-25 text-light border border-secondary-subtle">Satır Satır Analiz</span>
+        </div>
+        <div class="card-body p-0 bg-dark overflow-auto" style="max-height: 600px;">
+            <table class="table table-dark table-sm table-borderless mb-0 font-monospace" style="font-size: 0.85rem; line-height: 1.5;">
+                <tbody>
+                    {% for line in diff_lines %}
+                    <tr class="
+                        {% if line.type == 'add' %}bg-success bg-opacity-25 text-success fw-bold
+                        {% elif line.type == 'remove' %}bg-danger bg-opacity-25 text-danger fw-bold
+                        {% elif line.type == 'header' %}bg-secondary bg-opacity-25 text-info fw-bold
+                        {% elif line.type == 'info' %}text-info bg-info bg-opacity-10
+                        {% else %}text-light opacity-75{% endif %}">
+                        
+                        <td class="text-end text-muted pe-3 border-end border-secondary" style="width: 50px; user-select: none;">
+                            {% if line.type == 'add' %}+{% elif line.type == 'remove' %}-{% else %}~{% endif %}
+                        </td>
+                        
+                        <td class="px-3 py-1" style="white-space: pre-wrap;">{{ line.text }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% elif b1_id and b2_id %}
+    <div class="alert alert-success d-flex align-items-center shadow-sm border-0 rounded-4 p-4 mt-4">
+        <span class="iconify fs-1 me-3" data-icon="mdi:check-decagram"></span>
+        <div>
+            <h6 class="fw-bold mb-1">Mükemmel Uyum</h6>
+            <p class="mb-0 small">Seçilen iki yedek arasında hiçbir konfigürasyon değişikliği bulunmamaktadır. Cihaz güvenli durumdadır.</p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+
+{% block title %}Kayıt Ol - NetArchitect{% endblock %}
+
+{% block content %}
+<div class="container mt-5 mb-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6 col-xl-5">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background-color: var(--card-bg);">
+                <div class="card-body p-5">
+                    
+                    <div class="text-center mb-5">
+                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+                            <span class="iconify fs-1" data-icon="mdi:account-plus-outline"></span>
+                        </div>
+                        <h3 class="fw-bold mb-1" style="color: var(--text-main);">NetArchitect'e Katıl</h3>
+                        <p class="text-muted small">BT Altyapı yönetimine profesyonel bir adım atın.</p>
+                    </div>
+
+                    <form method="POST" id="registerForm">
+                        {% csrf_token %}
+                        
+                        {% for field in form %}
+                            <div class="mb-3">
+                                <label class="form-label fw-semibold text-muted small mb-2">{{ field.label }}</label>
+                                <div class="form-control-wrapper">
+                                    {{ field }}
+                                </div>
+                                
+                                {% if field.errors %}
+                                    {% for error in field.errors %}
+                                        <div class="text-danger small mt-1 fw-bold">
+                                            <span class="iconify me-1" data-icon="mdi:alert-circle"></span>{{ error|striptags }}
+                                        </div>
+                                    {% endfor %}
+                                {% endif %}
+                                
+                                {% if field.help_text %}
+                                    <div class="form-text small opacity-75 mt-1" style="font-size: 0.75rem;">
+                                        {{ field.help_text|safe }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+
+                        <button type="submit" id="btnRegister" class="btn btn-primary w-100 fw-bold py-3 mt-4 rounded-3 shadow-sm" style="background-color: #113231; border: none;" onclick="this.innerHTML='<span class=\'spinner-border spinner-border-sm me-2\'></span>Hesap Oluşturuluyor...'">
+                            Hesabımı Oluştur
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-4 pt-4 border-top border-secondary-subtle">
+                        <p class="text-muted small mb-3">Zaten bir hesabınız var mı?</p>
+                        <a href="/login/" class="btn btn-outline-secondary w-100 fw-medium rounded-3 py-2 text-dark border-secondary-subtle">
+                            <span class="iconify me-1 fs-5 align-text-bottom" data-icon="mdi:login"></span> Sisteme Giriş Yapın
+                        </a>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Django Form Inputlarını SaaS Moduna Sokma */
+    .form-control-wrapper input {
+        background-color: var(--main-bg) !important;
+        color: var(--text-main) !important;
+        border: 1px solid var(--border-color) !important;
+        padding: 12px 16px;
+        border-radius: 12px;
+        font-weight: 500;
+        width: 100%;
+        transition: all 0.2s;
+    }
+    .form-control-wrapper input:focus {
+        border-color: #0ea5e9 !important;
+        box-shadow: 0 0 0 4px rgba(14, 165, 233, 0.1) !important;
+        background-color: var(--card-bg) !important;
+        outline: none;
+    }
+    /* Petrol yeşili buton hover efekti */
+    #btnRegister:hover {
+        background-color: #1a4f4d !important;
+        transform: translateY(-2px);
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // JS tarafında ek müdahale gerekirse burası kullanılabilir, 
+    // ancak CSS ile input stillerini kalıcı hale getirdik.
+</script>
+{% endblock %}

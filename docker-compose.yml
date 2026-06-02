@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: netarchitect_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: netarchitect
+      POSTGRES_PASSWORD: netarchitect
+      POSTGRES_DB: netarchitect
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: netarchitect_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
+  web:
+    build: .
+    container_name: netarchitect_app
+    # YENİ: Production seviyesi Gunicorn ve otomatik kurulum komutları
+    command: sh -c "python manage.py migrate && python manage.py collectstatic --noinput && gunicorn core.wsgi:application --bind 0.0.0.0:8000 --workers 3"
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    environment:
+      DEBUG: 'False' # YENİ: Canlı ortam için Debug kapatıldı
+      ALLOWED_HOSTS: '*' # YENİ: Docker ağından gelen isteklere izin verildi
+      POSTGRES_DB: netarchitect
+      POSTGRES_USER: netarchitect
+      POSTGRES_PASSWORD: netarchitect
+      POSTGRES_HOST: db
+      POSTGRES_PORT: '5432'
+      WAZUH_API_KEY: 'N3tArch!t3ct_W3bh00k_S3cr3t_2026'
+      WEBHOOK_ALLOWED_IPS: '127.0.0.1,::1'
+    privileged: true
+    # network_mode: "host" # Eğer Linux sunucuda Scapy taraması çalışmazsa bu satırın başındaki diyezi kaldırın.
+
+  worker:
+    build: .
+    container_name: netarchitect_worker
+    command: celery -A core worker --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netarchitect
+      POSTGRES_USER: netarchitect
+      POSTGRES_PASSWORD: netarchitect
+      POSTGRES_HOST: db
+      POSTGRES_PORT: '5432'
+      CELERY_BROKER_URL: 'redis://redis:6379/0'
+      CELERY_RESULT_BACKEND: 'redis://redis:6379/0'
+
+  beat:
+    build: .
+    container_name: netarchitect_beat
+    command: celery -A core beat --loglevel=info
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+      - redis
+      - web
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: netarchitect
+      POSTGRES_USER: netarchitect
+      POSTGRES_PASSWORD: netarchitect
+      POSTGRES_HOST: db
+      POSTGRES_PORT: '5432'
+      CELERY_BROKER_URL: 'redis://redis:6379/0'
+      CELERY_RESULT_BACKEND: 'redis://redis:6379/0'
+
+volumes:
+  postgres_data:
+  redis_data:

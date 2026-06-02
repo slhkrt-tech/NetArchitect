@@ -1,0 +1,264 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-26 07:31+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+#: .\core\settings.py:117
+msgid "Türkçe"
+msgstr "Turkish"
+
+#: .\core\settings.py:118
+msgid "English"
+msgstr "English"
+
+#: .\inventory\templates\base.html:247
+msgid "Gözlem & Analiz"
+msgstr "Monitoring & Analytics"
+
+#: .\inventory\templates\base.html:251
+msgid "Dashboard"
+msgstr "Dashboard"
+
+#: .\inventory\templates\base.html:256
+msgid "Zabbix Canlı İzleme"
+msgstr "Zabbix Live Monitoring"
+
+#: .\inventory\templates\base.html:261
+msgid "Ağ Topolojisi"
+msgstr "Network Topology"
+
+#: .\inventory\templates\base.html:266
+msgid "Veri Merkezi"
+msgstr "Data Center"
+
+#: .\inventory\templates\base.html:273
+msgid "Varlık & IPAM"
+msgstr "Assets & IPAM"
+
+#: .\inventory\templates\base.html:277
+msgid "BT Varlık Envanteri"
+msgstr "IT Asset Inventory"
+
+#: .\inventory\templates\base.html:282
+msgid "Derin Ağ Keşfi"
+msgstr "Deep Network Discovery"
+
+#: .\inventory\templates\base.html:287
+msgid "Görsel IPAM"
+msgstr "Visual IPAM"
+
+#: .\inventory\templates\base.html:292
+msgid "Subnet Hesapla"
+msgstr "Subnet Calculator"
+
+#: .\inventory\templates\base.html:299
+msgid "Siber Güvenlik & Operasyon"
+msgstr "Cyber Security & Operations"
+
+#: .\inventory\templates\base.html:303
+msgid "Raporlama Merkezi"
+msgstr "Reporting Hub"
+
+#: .\inventory\templates\base.html:308
+msgid "Otonom Savunma & Loglar"
+msgstr "Autonomous Defense & Logs"
+
+#: .\inventory\templates\base.html:315
+msgid "Otomasyon & ITSM"
+msgstr "Automation & ITSM"
+
+#: .\inventory\templates\base.html:319
+msgid "Sistem & Bilet Yönetimi"
+msgstr "System & Ticket Management"
+
+#: .\inventory\templates\base.html:326
+msgid "Toplu Konfigürasyon"
+msgstr "Bulk Configuration"
+
+#: .\inventory\templates\base.html:331
+msgid "Tekli Cihaz & CAB"
+msgstr "Single Device & CAB"
+
+#: .\inventory\templates\base.html:336
+msgid "Yedekleme & DR"
+msgstr "Backup & DR"
+
+#: .\inventory\templates\base.html:344
+msgid "Hizmet Kataloğu"
+msgstr "Service Catalog"
+
+#: .\inventory\templates\base.html:352
+msgid "Dokümantasyon"
+msgstr "Documentation"
+
+#: .\inventory\templates\base.html:356 .\inventory\templates\base.html:387
+msgid "Bilgi Bankası"
+msgstr "Knowledge Base"
+
+#: .\inventory\templates\base.html:364
+msgid "Yönetim & Yapılandırma"
+msgstr "Management & Configuration"
+
+#: .\inventory\templates\base.html:368
+msgid "Sistem Ayarları & IAM"
+msgstr "System Settings & IAM"
+
+#: .\inventory\templates\base.html:378
+msgid "Kurumsal Hizmetler"
+msgstr "Enterprise Services"
+
+#: .\inventory\templates\base.html:382
+msgid "Hizmet Kataloğu & Destek"
+msgstr "Service Catalog & Support"
+
+#: .\inventory\templates\base.html:441 .\inventory\templates\base.html:549
+msgid "Gece Modu"
+msgstr "Night Mode"
+
+#: .\inventory\templates\base.html:447
+msgid "API Dokümanı"
+msgstr "API Documentation"
+
+#: .\inventory\templates\base.html:452
+msgid "Gelişmiş Ayarlar"
+msgstr "Advanced Settings"
+
+#: .\inventory\templates\base.html:461
+msgid "Çıkış Yap"
+msgstr "Log Out"
+
+#: .\inventory\templates\base.html:483
+msgid "Sistem Bilgi Dokümanı"
+msgstr "System Info Document"
+
+#: .\inventory\templates\base.html:488
+msgid "Hizmet Kataloğu & ITSM"
+msgstr "Service Catalog & ITSM"
+
+#: .\inventory\templates\base.html:489
+msgid ""
+"Kullanıcılar sisteme girdiklerinde sıradan arıza kaydı açmak yerine, sizin "
+"oluşturduğunuz Hizmet Kataloğundan sipariş verir gibi teknik talepte "
+"bulunabilirler."
+msgstr "When users log in, they can submit technical requests from the Service Catalog you created instead of opening ordinary incident tickets."
+
+#: .\inventory\templates\base.html:491
+msgid "AIOps & PRTG Alarmları"
+msgstr "AIOps & PRTG Alerts"
+
+#: .\inventory\templates\base.html:492
+msgid ""
+"Yapay Zeka Destekli Tahminleyici Bakım (Predictive Maintenance) modülü, "
+"cihazların doluluk oranını Linear Regression ile hesaplar ve sistem çökmeden "
+"14 gün önce otonom olarak bilet açar."
+msgstr "The AI-powered Predictive Maintenance module calculates device utilization with Linear Regression and opens a ticket autonomously 14 days before a potential system failure."
+
+#: .\inventory\templates\base.html:494
+msgid "Otonom Savunma (Active Response)"
+msgstr "Autonomous Defense (Active Response)"
+
+#: .\inventory\templates\base.html:495
+msgid ""
+"Dışarıdan gelen Wazuh veya SIEM logları Webhook ile içeri alınır. Cihazlara "
+"yapılan Brute-Force gibi saldırılar tespit edildiğinde sistem, ilgili IP'yi "
+"cihaz üzerinde otomatik olarak karantinaya alır."
+msgstr "External Wazuh or SIEM logs are ingested through a webhook. If attacks such as brute force are detected against devices, the system automatically quarantines the offending IP on the device."
+
+#: .\inventory\templates\base.html:497
+msgid "Toplu İşlem (Bulk Operation)"
+msgstr "Bulk Operation"
+
+#: .\inventory\templates\base.html:498
+msgid ""
+"Toplu Konfigürasyon menüsünü kullanarak 100 cihaza aynı anda, cihazları "
+"yormadan (Asenkron Celery ile) tek tıkla konfigürasyon basabilirsiniz."
+msgstr "Use the Bulk Configuration menu to push configuration to 100 devices at once with asynchronous Celery execution, without overloading devices."
+
+#: .\inventory\templates\base.html:501
+msgid "Anladım, Kapat"
+msgstr "I Understand, Close"
+
+#: .\inventory\templates\base.html:545
+msgid "Gündüz Modu"
+msgstr "Day Mode"
+
+#: .\inventory\templates\bulk_generator.html:3
+msgid "NetArchitect - Bulk Konfigürasyon"
+msgstr "NetArchitect - Bulk Configuration"
+
+#: .\inventory\templates\bulk_generator.html:9
+msgid "Toplu Konfigürasyon İşlemleri"
+msgstr "Bulk Configuration Operations"
+
+#: .\inventory\templates\bulk_generator.html:10
+msgid ""
+"Aşağıdaki listeden hedef cihazları seçin ve uygulamak istediğiniz komutları "
+"girin."
+msgstr "Select target devices from the list below and enter the commands you want to apply."
+
+#: .\inventory\templates\bulk_generator.html:31
+msgid "Komut Bloğu"
+msgstr "Command Block"
+
+#: .\inventory\templates\bulk_generator.html:32
+msgid "Örn:"
+msgstr "Example:"
+
+#: .\inventory\templates\bulk_generator.html:35
+msgid "Toplu İşlemi Başlat"
+msgstr "Start Bulk Operation"
+
+#: .\inventory\templates\dashboard.html:4
+msgid "NetArchitect - Komuta Merkezi"
+msgstr "NetArchitect - Command Center"
+
+#: .\inventory\templates\dashboard.html:56
+msgid "Komuta Merkezi"
+msgstr "Command Center"
+
+#: .\inventory\templates\dashboard.html:57
+msgid ""
+"Sisteminizin genel sağlık durumunu ve aktif süreçleri buradan takip edin."
+msgstr "Track your overall system health and active processes here."
+
+#: .\inventory\templates\dashboard.html:102
+msgid "Ağ Cihazları"
+msgstr "Network Devices"
+
+#: .\inventory\templates\dashboard.html:122
+msgid "Açık Talepler"
+msgstr "Open Requests"
+
+#: .\inventory\templates\dashboard.html:142
+msgid "Kritik Lisanslar"
+msgstr "Critical Licenses"
+
+#: .\inventory\templates\dashboard.html:184
+msgid "Sistem Aktivite Isı Haritası (Son 30 Gün)"
+msgstr "System Activity Heatmap (Last 30 Days)"
+
+#: .\inventory\templates\dashboard.html:195
+msgid "Cihaz Türü Dağılımı"
+msgstr "Device Type Distribution"
+
+#: .\inventory\templates\dashboard.html:201
+msgid "Aktif Bilet Durumları"
+msgstr "Active Ticket Statuses"
+
+#: .\inventory\templates\dashboard.html:211
+msgid "Siber Olaylar (Security Events)"
+msgstr "Security Events"

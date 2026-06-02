@@ -1,0 +1,164 @@
+{% extends 'base.html' %}
+
+{% block title %}NetArchitect - Ağ Topolojisi{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-0 mb-5">
+    
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold mb-1">Dinamik Ağ Topolojisi</h4>
+            <p class="text-muted small mb-0">Cihazlar arası hiyerarşik bağlantıları ve ağ haritasını interaktif olarak inceleyin.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button onclick="location.reload()" class="btn btn-light border-secondary-subtle shadow-sm fw-medium rounded-pill px-3">
+                <span class="iconify me-1 align-text-bottom text-muted" data-icon="mdi:refresh"></span> Yenile
+            </button>
+            <button class="btn btn-primary shadow-sm fw-medium rounded-pill px-3" onclick="network.fit()">
+                <span class="iconify me-1 align-text-bottom" data-icon="mdi:focus-field"></span> Haritayı Ortala
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden position-relative" style="background-color: var(--main-bg);">
+                
+                <div class="position-absolute top-0 start-0 m-4 p-3 rounded-4 shadow-sm border border-secondary-subtle" style="z-index: 10; max-width: 250px; background-color: var(--card-bg);">
+                    <h6 class="fw-bold d-flex align-items-center mb-2" style="color: var(--text-main);">
+                        <span class="bg-info bg-opacity-10 text-info rounded p-1 me-2"><span class="iconify" data-icon="mdi:map-legend"></span></span>
+                        Topoloji Rehberi
+                    </h6>
+                    <p class="text-muted mb-3" style="font-size: 0.75rem;">Cihazları sürükleyebilir, tekerlek ile yakınlaşabilirsiniz.</p>
+                    
+                    <div class="d-flex flex-column gap-2">
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-danger me-2 shadow-sm" style="width: 12px; height: 12px; border-radius: 50%; padding: 0;"> </span>
+                            <span class="small fw-semibold text-muted">Router / Firewall</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-success me-2 shadow-sm" style="width: 12px; height: 12px; border-radius: 50%; padding: 0;"> </span>
+                            <span class="small fw-semibold text-muted">Switch</span>
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <span class="badge bg-primary me-2 shadow-sm" style="width: 12px; height: 12px; border-radius: 50%; padding: 0;"> </span>
+                            <span class="small fw-semibold text-muted">Uç Cihazlar</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="mynetwork" style="height: 75vh; width: 100%;"></div>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Topolojiye özel fare imleci ayarları */
+    #mynetwork canvas { cursor: grab; }
+    #mynetwork canvas:active { cursor: grabbing; outline: none; }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+
+<script type="text/javascript">
+    document.addEventListener("DOMContentLoaded", function() {
+        
+        // Django'dan gelen JSON verilerini alıyoruz
+        const rawNodes = {{ nodes_json|safe }};
+        const rawEdges = {{ edges_json|safe }};
+
+        // --- 1. TEMA RENKLERİNİ YAKALA (Kusursuz Dark/Light Uyum) ---
+        const rootStyle = getComputedStyle(document.documentElement);
+        const textColor = rootStyle.getPropertyValue('--text-main').trim() || '#334155'; 
+        const bgColor = rootStyle.getPropertyValue('--main-bg').trim() || '#f8fafc';
+        const lineColor = rootStyle.getPropertyValue('--border-color').trim() || '#e2e8f0';
+
+        // --- 2. YAZI VE İKON STİLLERİNİ UYGULA ---
+        rawNodes.forEach(node => {
+            node.font = { 
+                color: textColor, // Gece modunda beyaza, gündüz modunda griye döner
+                size: 14, 
+                face: 'Inter, system-ui, sans-serif', // SaaS Fontu
+                bold: true,
+                strokeWidth: 4, // Çizgilerin üzerinden geçerken yazının okunması için
+                strokeColor: bgColor // Arka planla aynı renkte çerçeve
+            };
+        });
+
+        const nodes = new vis.DataSet(rawNodes);
+        const edges = new vis.DataSet(rawEdges);
+        const container = document.getElementById('mynetwork');
+        const data = { nodes: nodes, edges: edges };
+
+        // --- 3. AĞ GÖRÜNÜM VE FİZİK AYARLARI ---
+        const options = {
+            interaction: {
+                hover: true,
+                tooltipDelay: 200,
+                zoomView: true,
+                dragView: true,
+                navigationButtons: false // Kendi arayüzümüz olduğu için varsayılan butonları kapattım
+            },
+            physics: {
+                enabled: true,
+                stabilization: {
+                    enabled: true,
+                    iterations: 1000,
+                    updateInterval: 25
+                },
+                barnesHut: {
+                    gravitationalConstant: -3000,
+                    centralGravity: 0.3,
+                    springLength: 180,
+                    springConstant: 0.05,
+                    damping: 0.09
+                }
+            },
+            nodes: {
+                shape: 'dot',
+                size: 25,
+                borderWidth: 3,
+                shadow: {
+                    enabled: true,
+                    color: 'rgba(0,0,0,0.15)',
+                    size: 10, x: 3, y: 3
+                }
+            },
+            edges: {
+                width: 2.5,
+                color: {
+                    color: '#94a3b8', // Soft gri çizgi
+                    highlight: '#0ea5e9', // Tıklanınca SaaS mavisi
+                    hover: '#0ea5e9'
+                },
+                smooth: {
+                    type: 'cubicBezier',
+                    forceDirection: 'none',
+                    roundness: 0.5
+                },
+                shadow: { enabled: false }
+            }
+        };
+
+        // --- 4. HARİTAYI BAŞLAT ---
+        window.network = new vis.Network(container, data, options);
+
+        // Pencere boyutu değiştiğinde veya menü açılıp kapandığında haritayı yeniden merkezle
+        window.addEventListener('resize', function() { 
+            window.network.fit(); 
+        });
+        
+        // Tema değiştirme butonuna basıldığında harita renklerini güncellemek için sayfayı yenile
+        const themeToggle = document.getElementById('theme-toggle');
+        if(themeToggle) {
+            themeToggle.addEventListener('click', () => {
+                setTimeout(() => { location.reload(); }, 100);
+            });
+        }
+    });
+</script>
+{% endblock %}

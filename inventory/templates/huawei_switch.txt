@@ -1,0 +1,29 @@
+! NetArchitect - Huawei Switch Konfigürasyonu
+system-view
+sysname {{ hostname }}
+!
+vlan batch {{ vlan_id }}
+vlan {{ vlan_id }}
+ description {{ vlan_name }}
+ quit
+!
+interface {{ interface_name }}
+ port link-type access
+ port default vlan {{ vlan_id }}
+ stp edged-port enable
+{% if enable_port_security %}
+ port-security enable
+ port-security max-mac-num {{ mac_limit }}
+ port-security mac-address sticky
+{% endif %}
+ quit
+!
+{% if enable_ospf %}
+ospf 1
+ area {{ ospf_area }}
+  network {{ ospf_network }}
+  quit
+ quit
+{% endif %}
+return
+save
