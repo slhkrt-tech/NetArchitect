@@ -1,5 +1,15 @@
 FROM python:3.11-slim
 
+LABEL org.opencontainers.image.title="OmniOps" \
+      org.opencontainers.image.description="OmniOps Factory IT Suite" \
+      org.opencontainers.image.vendor="OmniOps" \
+      org.opencontainers.image.source="https://github.com/slhkrt-tech/OmniOps"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    APP_NAME=OmniOps
+
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
@@ -12,9 +22,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY . .
+
+RUN mkdir -p /app/media /app/staticfiles /app/logs
 
 EXPOSE 8000
 

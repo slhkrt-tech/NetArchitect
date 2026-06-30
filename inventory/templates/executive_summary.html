@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+
+{% block title %}Yönetici Bilgilendirme - OmniOps Factory IT Suite{% endblock %}
+
+{% block content %}
+<section class="suite-hero executive-hero mb-4">
+    <div>
+        <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+        <h1 class="suite-title">Yönetici Bilgilendirme Paneli</h1>
+        <p class="suite-subtitle">Fabrika BT operasyonlarının sağlık, risk, servis, güvenlik, uyum ve süreklilik özetini tek sayfada görün.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'executive_summary_export' 'pdf' %}" class="btn btn-primary">
+            <span class="iconify me-1" data-icon="mdi:file-pdf-box"></span> PDF İndir
+        </a>
+        <a href="{% url 'executive_summary_export' 'word' %}" class="btn btn-light">
+            <span class="iconify me-1" data-icon="mdi:file-word-box"></span> Word İndir
+        </a>
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    {% for item in kpis %}
+    <div class="col-xl-3 col-md-6">
+        <div class="card suite-kpi h-100">
+            <div class="card-body">
+                <div class="suite-kpi-icon suite-tone-{{ item.tone }}">
+                    <span class="iconify" data-icon="{{ item.icon }}"></span>
+                </div>
+                <div class="text-muted small fw-bold mt-3">{{ item.title }}</div>
+                <div class="display-6 fw-bold mb-1">{{ item.value }}</div>
+                <div class="text-muted small">{{ item.detail }}</div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="row g-3">
+            {% for section in sections %}
+            <div class="col-lg-6">
+                <div class="card suite-section-card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center gap-2 mb-3">
+                            <span class="suite-section-icon"><span class="iconify" data-icon="{{ section.icon }}"></span></span>
+                            <h5 class="fw-bold mb-0">{{ section.title }}</h5>
+                        </div>
+                        {% for label, value in section.metrics %}
+                        <div class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                            <span class="text-muted">{{ label }}</span>
+                            <span class="fw-bold fs-5">{{ value }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="card suite-section-card mb-4">
+            <div class="card-header bg-transparent fw-bold">Yönetici Öncelikleri</div>
+            <div class="card-body">
+                {% for alert in alerts %}
+                <div class="suite-alert-row">
+                    <div>
+                        <div class="fw-bold">{{ alert.title }}</div>
+                        <div class="text-muted small">{{ alert.action }}</div>
+                    </div>
+                    <span class="badge bg-{{ alert.tone }}-subtle text-{{ alert.tone }}">{{ alert.value }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card suite-section-card">
+            <div class="card-header bg-transparent fw-bold">Rapor Notları</div>
+            <div class="card-body">
+                {% for item in recommendations %}
+                <div class="d-flex gap-2 mb-3">
+                    <span class="iconify text-primary mt-1 flex-shrink-0" data-icon="mdi:check-decagram-outline"></span>
+                    <span class="text-muted small">{{ item }}</span>
+                </div>
+                {% endfor %}
+                <div class="small text-muted mt-3">Oluşturulma: {{ generated_at|date:"d.m.Y H:i" }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

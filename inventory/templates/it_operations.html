@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+
+{% block title %}IT Operasyon Merkezi - OmniOps{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">IT Operasyon Merkezi</h2>
+        <p class="text-muted mb-0">Satın alma, nöbet, yedekleme, tedarikçi destek ve zimmet süreçlerini tek ekrandan yönetin.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <div class="card glass-card h-100"><div class="card-body">
+            <div class="text-muted small">Onay Bekleyen Satın Alma</div>
+            <div class="display-6 fw-bold text-warning">{{ metrics.pending_procurements }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card glass-card h-100"><div class="card-body">
+            <div class="text-muted small">Aktif Nöbetçi</div>
+            <div class="display-6 fw-bold text-primary">{{ metrics.active_oncall }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card glass-card h-100"><div class="card-body">
+            <div class="text-muted small">Sorunlu Yedekleme</div>
+            <div class="display-6 fw-bold text-danger">{{ metrics.unhealthy_backups }}</div>
+        </div></div>
+    </div>
+    <div class="col-md-3">
+        <div class="card glass-card h-100"><div class="card-body">
+            <div class="text-muted small">Açık Tedarikçi Vakası</div>
+            <div class="display-6 fw-bold">{{ metrics.open_vendor_cases }}</div>
+        </div></div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-4">
+        <div class="accordion" id="itOpsForms">
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header">
+                    <button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#procurementForm">Satın Alma Talebi</button>
+                </h2>
+                <div id="procurementForm" class="accordion-collapse collapse show" data-bs-parent="#itOpsForms">
+                    <div class="accordion-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="procurement">
+                            {{ forms.procurement.as_p }}
+                            <button class="btn btn-primary w-100">Talep Oluştur</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#oncallForm">Nöbet Planla</button>
+                </h2>
+                <div id="oncallForm" class="accordion-collapse collapse" data-bs-parent="#itOpsForms">
+                    <div class="accordion-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="oncall">
+                            {{ forms.oncall.as_p }}
+                            <button class="btn btn-info w-100">Nöbet Kaydet</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#backupForm">Yedekleme İşi Ekle</button>
+                </h2>
+                <div id="backupForm" class="accordion-collapse collapse" data-bs-parent="#itOpsForms">
+                    <div class="accordion-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="backup">
+                            {{ forms.backup.as_p }}
+                            <button class="btn btn-success w-100">Yedekleme Kaydet</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#vendorForm">Tedarikçi Destek Kaydı</button>
+                </h2>
+                <div id="vendorForm" class="accordion-collapse collapse" data-bs-parent="#itOpsForms">
+                    <div class="accordion-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="vendor_case">
+                            {{ forms.vendor_case.as_p }}
+                            <button class="btn btn-warning w-100">Vaka Aç</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="accordion-item border-0 glass-card">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#handoverForm">Zimmet Teslim / İade</button>
+                </h2>
+                <div id="handoverForm" class="accordion-collapse collapse" data-bs-parent="#itOpsForms">
+                    <div class="accordion-body">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="handover">
+                            {{ forms.handover.as_p }}
+                            <button class="btn btn-secondary w-100">Zimmet Kaydet</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Aktif Nöbetçiler</div>
+                    <div class="card-body">
+                        {% for shift in active_oncall %}
+                        <div class="border rounded-3 p-3 mb-2">
+                            <div class="fw-bold">{{ shift.engineer.get_full_name|default:shift.engineer.username }}</div>
+                            <div class="text-muted small">{{ shift.start_at|date:"d.m.Y H:i" }} - {{ shift.end_at|date:"d.m.Y H:i" }}</div>
+                            {% if shift.phone %}<div class="small">{{ shift.phone }}</div>{% endif %}
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Şu an aktif nöbet kaydı yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Onay Bekleyen Satın Alma</div>
+                    <div class="card-body">
+                        {% for item in pending_procurements %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom py-2 gap-2">
+                            <div>
+                                <div class="fw-bold">{{ item.title }}</div>
+                                <div class="text-muted small">{{ item.get_category_display }} · {{ item.estimated_cost }} TL</div>
+                            </div>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="approve_procurement">
+                                <input type="hidden" name="procurement_id" value="{{ item.id }}">
+                                <button class="btn btn-sm btn-outline-success">Onayla</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Bekleyen satın alma talebi yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Sorunlu Yedeklemeler</div>
+                    <div class="card-body">
+                        {% for job in unhealthy_backups %}
+                        <div class="border rounded-3 p-3 mb-2 border-danger-subtle">
+                            <div class="d-flex justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-bold">{{ job.name }}</div>
+                                    <div class="text-muted small">{{ job.target_host|default:"-" }} · {{ job.get_last_status_display }}</div>
+                                </div>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="mark_backup_success">
+                                    <input type="hidden" name="job_id" value="{{ job.id }}">
+                                    <button class="btn btn-sm btn-outline-success">Başarılı</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Sorunlu yedekleme kaydı yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Açık Tedarikçi Vakaları</div>
+                    <div class="card-body">
+                        {% for case in open_vendor_cases %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom py-2 gap-2">
+                            <div>
+                                <div class="fw-bold">{{ case.title }}</div>
+                                <div class="text-muted small">{{ case.vendor_name }} · {{ case.get_priority_display }}</div>
+                            </div>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="resolve_vendor_case">
+                                <input type="hidden" name="case_id" value="{{ case.id }}">
+                                <button class="btn btn-sm btn-outline-primary">Çöz</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Açık tedarikçi vakası yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card glass-card">
+                    <div class="card-header bg-transparent fw-bold">Son Zimmet İşlemleri</div>
+                    <div class="card-body table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Varlık</th>
+                                    <th>Personel</th>
+                                    <th>İşlem</th>
+                                    <th>Tarih</th>
+                                    <th>İşlemi Yapan</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in recent_handovers %}
+                                <tr>
+                                    <td class="fw-bold">{{ row.asset.name }}</td>
+                                    <td>{{ row.employee_name }}</td>
+                                    <td>{{ row.get_action_display }}</td>
+                                    <td>{{ row.handover_date }}</td>
+                                    <td>{{ row.performed_by.username|default:"-" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="5" class="text-muted">Henüz zimmet kaydı yok.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

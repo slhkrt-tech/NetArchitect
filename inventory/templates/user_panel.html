@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}NetArchitect - Destek Taleplerim{% endblock %}
+{% block title %}OmniOps - Destek Taleplerim{% endblock %}
 
 {% block content %}
 <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
@@ -144,8 +144,10 @@
                                 {% for ticket in tickets %}
                                 <tr>
                                     <td class="ps-3 py-3">
-                                        <div class="fw-bold text-truncate mb-1" style="max-width: 220px;" data-bs-toggle="tooltip" title="{{ ticket.title }}">
-                                            {{ ticket.title }}
+                                        <div class="fw-bold text-truncate mb-1" style="max-width: 220px;">
+                                            <a href="{% url 'ticket_detail' ticket.id %}" class="text-decoration-none text-body" data-bs-toggle="tooltip" title="{{ ticket.title }}">
+                                                {{ ticket.title }}
+                                            </a>
                                         </div>
                                         <small class="text-muted d-flex align-items-center">
                                             <span class="iconify me-1" data-icon="mdi:server-network"></span> 
@@ -170,8 +172,9 @@
                                     </td>
                                     <td class="py-3 text-end">
                                         <div class="d-inline-flex gap-1">
-                                            <a href="{% url 'ticket_edit' ticket.id %}" class="btn btn-sm btn-outline-warning rounded-circle border-0" title="Düzenle"><span class="iconify" data-icon="mdi:pencil"></span></a>
-                                            <a href="{% url 'ticket_delete' ticket.id %}" class="btn btn-sm btn-outline-danger rounded-circle border-0" title="Sil"><span class="iconify" data-icon="mdi:trash-can-outline"></span></a>
+                                        <div class="d-flex gap-1">
+                                            <a href="{% url 'ticket_detail' ticket.id %}" class="btn btn-sm btn-outline-primary rounded-circle border-0" title="Detay"><span class="iconify" data-icon="mdi:eye-outline"></span></a>
+                                        </div>
                                         </div>
                                     </td>
                                     <td class="pe-3 py-3 text-end">

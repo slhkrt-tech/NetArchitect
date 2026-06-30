@@ -1,53 +1,30 @@
 {% extends 'base.html' %}
 {% load i18n static %}
 
-{% block title %}{% trans "NetArchitect - Komuta Merkezi" %}{% endblock %}
+{% block title %}{% trans "OmniOps - Komuta Merkezi" %}{% endblock %}
 
 {% block content %}
 <style>
-    :root {
-        /* SOC Ekranı Karanlık Paleti */
-        --bg-soc-main: #0b101e;
-        --card-soc-bg: #151e32;
-        --text-soc-main: #f8fafc;
-        --text-soc-muted: #94a3b8;
-        --border-soc: #1e293b;
-        --accent-glow: rgba(59, 130, 246, 0.15);
+    .event-card {
+        transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
     }
-
-    body { background-color: var(--bg-soc-main) !important; color: var(--text-soc-main) !important; }
-    h1, h2, h3, h4, h5, h6, .text-white { color: #ffffff !important; }
-    .text-muted { color: var(--text-soc-muted) !important; }
-    
-    .card, .pro-table-wrapper {
-        background-color: var(--card-soc-bg) !important;
-        border: 1px solid var(--border-soc) !important;
-        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.4) !important;
-    }
-
-    .list-group-item { background-color: transparent !important; border-color: var(--border-soc) !important; color: var(--text-soc-main) !important; }
-
-    /* WAZUH STİLİ EVENT-DRIVEN ANİMASYONLARI */
-    .event-card { transition: all 0.3s ease; border-radius: 12px; }
-    
-    @keyframes pulse-danger {
-        0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
-        70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); border-color: #ef4444; }
-        100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); border-color: var(--border-soc); }
-    }
-    
     .pulse-danger {
-        animation: pulse-danger 2s infinite !important;
-        border: 1px solid #ef4444 !important;
-        background: linear-gradient(145deg, rgba(239,68,68,0.1) 0%, var(--card-soc-bg) 100%) !important;
+        border-color: rgba(244, 63, 94, 0.45) !important;
+        background: linear-gradient(145deg, rgba(244, 63, 94, 0.08), var(--surface)) !important;
     }
-    
-    .trend-neutral { color: var(--text-soc-muted); }
-    .glass-card:hover { transform: translateY(-5px); border-color: #3b82f6 !important; box-shadow: 0 10px 25px -5px var(--accent-glow) !important; }
-
-    /* TIMELINE WIDGET CSS */
-    .timeline-widget { border-left: 2px solid var(--border-soc); margin-left: 20px; }
-    .timeline-item:last-child { padding-bottom: 0 !important; border-left: 2px solid transparent !important; margin-left: -2px; }
+    .trend-neutral { color: var(--text-muted); }
+    .timeline-widget {
+        border-left: 2px solid var(--border-color);
+        margin-left: 20px;
+    }
+    .timeline-item:last-child {
+        padding-bottom: 0 !important;
+        border-left: 2px solid transparent !important;
+        margin-left: -2px;
+    }
+    .timeline-marker {
+        box-shadow: 0 0 0 4px var(--surface) !important;
+    }
 </style>
 
 <div class="container-fluid px-0 mb-5">
@@ -207,7 +184,7 @@
     <div class="row g-4">
         <div class="col-lg-8">
             <div class="pro-table-wrapper h-100 rounded-4 p-0">
-                <div class="d-flex justify-content-between align-items-center p-4 pb-0 mb-3 border-bottom border-secondary" style="border-color: var(--border-soc) !important;">
+                <div class="d-flex justify-content-between align-items-center p-4 pb-0 mb-3 border-bottom border-secondary" style="border-color: var(--border-color) !important;">
                     <h6 class="fw-bold mb-3 text-white"><span class="iconify me-1 fs-5 align-text-bottom text-danger" data-icon="mdi:chart-timeline-variant"></span> {% trans "Siber Olaylar (Security Events)" %}</h6>
                     <a href="{% url 'custom_admin' %}" class="text-decoration-none small text-info fw-bold mb-3">Olay Yönetimi</a>
                 </div>
@@ -216,7 +193,7 @@
                     <ul class="timeline-widget list-unstyled mb-0">
                         {% for ticket in tickets|slice:":6" %}
                         <li class="timeline-item position-relative pb-4">
-                            <div class="timeline-marker position-absolute rounded-circle {% if ticket.priority == 'Kritik' %}bg-danger{% elif ticket.priority == 'Yuksek' %}bg-warning{% elif ticket.priority == 'Orta' %}bg-info{% else %}bg-success{% endif %}" style="width: 14px; height: 14px; left: -27px; top: 4px; box-shadow: 0 0 0 4px var(--bg-soc-main);"></div>
+                            <div class="timeline-marker position-absolute rounded-circle {% if ticket.priority == 'Kritik' %}bg-danger{% elif ticket.priority == 'Yuksek' %}bg-warning{% elif ticket.priority == 'Orta' %}bg-info{% else %}bg-success{% endif %}" style="width: 14px; height: 14px; left: -27px; top: 4px; box-shadow: 0 0 0 4px var(--surface);"></div>
                             <div class="d-flex justify-content-between align-items-start">
                                 <div>
                                     <h6 class="fw-bold mb-1 text-white">{{ ticket.title }}</h6>
@@ -250,7 +227,7 @@
 
         <div class="col-lg-4">
             <div class="pro-table-wrapper rounded-4 mb-4 p-0">
-                <div class="p-4 pb-2 border-bottom border-secondary" style="border-color: var(--border-soc) !important;">
+                <div class="p-4 pb-2 border-bottom border-secondary" style="border-color: var(--border-color) !important;">
                     <h6 class="fw-bold mb-3 text-white"><span class="iconify me-1 fs-5 align-text-bottom text-info" data-icon="mdi:sitemap"></span> Omurga Cihazlar</h6>
                 </div>
                 <div class="px-3 pb-3 mt-2">
@@ -275,13 +252,13 @@
             </div>
 
             {% if expiring_licenses %}
-            <div class="card border border-warning shadow-lg rounded-4" style="background-color: var(--card-soc-bg);">
+            <div class="card border border-warning shadow-lg rounded-4" style="background-color: var(--surface);">
                 <div class="card-body p-4">
                     <h6 class="fw-bold text-warning mb-3 d-flex align-items-center">
                         <span class="iconify fs-5 me-2" data-icon="mdi:alert"></span> Yaklaşan Yenilemeler
                     </h6>
                     {% for lic in expiring_licenses|slice:":3" %}
-                    <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}" style="border-color: var(--border-soc) !important;">
+                    <div class="mb-2 pb-2 {% if not forloop.last %}border-bottom{% endif %}" style="border-color: var(--border-color) !important;">
                         <div class="d-flex justify-content-between">
                             <span class="text-white fw-bold small">{{ lic.name }}</span>
                             <span class="badge bg-danger bg-opacity-10 text-danger px-2">{{ lic.days_left }} Gün</span>

@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}NetArchitect - CLI Konfigürasyon Üretici{% endblock %}
+{% block title %}OmniOps - CLI Konfigürasyon Üretici{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0 mb-5">
@@ -124,7 +124,7 @@
                         <span class="rounded-circle" style="width: 12px; height: 12px; background-color: #f59e0b;"></span>
                         <span class="rounded-circle" style="width: 12px; height: 12px; background-color: #10b981;"></span>
                     </div>
-                    <span class="text-white-50 small fw-bold font-monospace" style="letter-spacing: 1px;">NetArchitect Console</span>
+                    <span class="text-white-50 small fw-bold font-monospace" style="letter-spacing: 1px;">OmniOps Console</span>
                     <div>
                         {% if generated_config %}
                         <button class="btn btn-sm btn-outline-light rounded-pill px-3 fw-medium border-secondary text-white" id="copyConfigBtn">
@@ -151,7 +151,7 @@
                     {% if generated_config %}
                         <pre class="m-0 px-4 pt-4 pb-2 font-monospace text-light overflow-auto flex-grow-1" id="configOutput" style="font-size: 0.9rem;">
 <span class="text-success">! ========================================================</span>
-<span class="text-success">! NetArchitect Otomatik Konfigürasyon Üretici</span>
+<span class="text-success">! OmniOps Otomatik Konfigürasyon Üretici</span>
 <span class="text-success">! Üretim Zamanı: {% now "d M Y H:i" %}</span>
 <span class="text-success">! ========================================================</span>
 
@@ -169,7 +169,7 @@
                     {% else %}
                         <div class="d-flex flex-column justify-content-center align-items-center h-100 flex-grow-1 text-center p-5">
                             <span class="iconify text-white-50 mb-3" data-icon="mdi:console" style="font-size: 4rem; opacity: 0.2;"></span>
-                            <p class="text-white-50 font-monospace mb-0 fs-5">root@netarchitect:~$_ <span class="cursor-blink text-success">|</span></p>
+                            <p class="text-white-50 font-monospace mb-0 fs-5">root@omniops:~$_ <span class="cursor-blink text-success">|</span></p>
                             <p class="text-white-50 small mt-3 opacity-50" style="max-width: 400px;">Sistemi yapılandırmak için sol taraftan parametreleri girip "Ekranda Üret" butonuna basın veya doğrudan .CFG/.JSON olarak indirin.</p>
                         </div>
                     {% endif %}
@@ -292,7 +292,7 @@
     // 3. txt İndir (Tarayıcı üzerinden çalışır)
     function downloadTxt() {
         const text = document.getElementById('configOutput').innerText;
-        const filename = "NetArchitect_Device_Config.txt"; 
+        const filename = "OmniOps_Device_Config.txt"; 
         const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement("a");
         link.href = URL.createObjectURL(blob);

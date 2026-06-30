@@ -197,8 +197,8 @@ msgid "Gündüz Modu"
 msgstr "Day Mode"
 
 #: .\inventory\templates\bulk_generator.html:3
-msgid "NetArchitect - Bulk Konfigürasyon"
-msgstr "NetArchitect - Bulk Configuration"
+msgid "OmniOps - Bulk Konfigürasyon"
+msgstr "OmniOps - Bulk Configuration"
 
 #: .\inventory\templates\bulk_generator.html:9
 msgid "Toplu Konfigürasyon İşlemleri"
@@ -223,8 +223,8 @@ msgid "Toplu İşlemi Başlat"
 msgstr "Start Bulk Operation"
 
 #: .\inventory\templates\dashboard.html:4
-msgid "NetArchitect - Komuta Merkezi"
-msgstr "NetArchitect - Command Center"
+msgid "OmniOps - Komuta Merkezi"
+msgstr "OmniOps - Command Center"
 
 #: .\inventory\templates\dashboard.html:56
 msgid "Komuta Merkezi"

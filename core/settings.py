@@ -22,6 +22,11 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-for-dev-only-p
 DEBUG = os.environ.get('DJANGO_DEBUG', 'False').lower() in ('1', 'true', 'yes')
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',') if host.strip()]
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
 
 # Application definition
 
@@ -34,7 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.sites',
     'social_django',
-    'inventory',
+    'inventory.apps.InventoryConfig',
     'rest_framework', 
     'django_filters', # API Filtreleme Motoru
     'drf_spectacular', # Swagger API Dokümantasyonu
@@ -69,6 +74,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'social_django.context_processors.backends',
                 'social_django.context_processors.login_redirect',
+                'inventory.context_processors.notification_context',
             ],
         },
     },
@@ -79,7 +85,7 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL', 'postgres://netarchitect:netarchitect@db:5432/netarchitect'),
+        default=os.environ.get('DATABASE_URL', f'sqlite:///{BASE_DIR / "db.sqlite3"}'),
         conn_max_age=600,
         conn_health_checks=True,
     )
@@ -92,6 +98,7 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'OPTIONS': {'min_length': 10},
     },
     {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
@@ -143,25 +150,60 @@ SOCIAL_AUTH_OIDC_ENDPOINT = os.environ.get('SOCIAL_AUTH_OIDC_ENDPOINT', '')
 POSTGRES_BACKUP_DIR = os.environ.get('POSTGRES_BACKUP_DIR', os.path.join(BASE_DIR, 'db_backups'))
 POSTGRES_BACKUP_FORMAT = os.environ.get('POSTGRES_BACKUP_FORMAT', 'custom')
 PG_DUMP_PATH = os.environ.get('PG_DUMP_PATH', 'pg_dump')
-POSTGRES_BACKUP_FILE_PREFIX = os.environ.get('POSTGRES_BACKUP_FILE_PREFIX', 'netarchitect_backup')
+POSTGRES_BACKUP_FILE_PREFIX = os.environ.get('POSTGRES_BACKUP_FILE_PREFIX', 'omniops_backup')
 
 AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', '')
 AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', '')
 AWS_S3_BACKUP_BUCKET = os.environ.get('AWS_S3_BACKUP_BUCKET', '')
 AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', '')
 
-REMOTE_PROBE_SHARED_SECRET = os.environ.get('REMOTE_PROBE_SHARED_SECRET', 'netarchitect_probe_secret')
+REMOTE_PROBE_SHARED_SECRET = os.environ.get('REMOTE_PROBE_SHARED_SECRET', '')
+VAULT_KEY = os.environ.get('VAULT_KEY', '')
+
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@omniops.local')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() in ('1', 'true', 'yes')
+EMAIL_BACKEND = (
+    'django.core.mail.backends.smtp.EmailBackend'
+    if EMAIL_HOST else
+    'django.core.mail.backends.console.EmailBackend'
+)
+
+def _parse_admins(value):
+    admins = []
+    for item in value.split(','):
+        item = item.strip()
+        if not item:
+            continue
+        if ':' in item:
+            name, email = item.split(':', 1)
+        else:
+            name, email = 'Admin', item
+        admins.append((name.strip(), email.strip()))
+    return admins
+
+ADMINS = _parse_admins(os.environ.get('ADMINS', ''))
 
 # ==========================================
 
 # Static files (CSS, JavaScript, Images)
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+FILE_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('FILE_UPLOAD_MAX_MEMORY_SIZE', str(5 * 1024 * 1024)))
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.environ.get('DATA_UPLOAD_MAX_MEMORY_SIZE', str(10 * 1024 * 1024)))
+DATA_UPLOAD_MAX_NUMBER_FIELDS = int(os.environ.get('DATA_UPLOAD_MAX_NUMBER_FIELDS', '2000'))
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -174,15 +216,23 @@ LOGIN_URL = 'login'       # Giriş yapmamış biri zorlanırsa buraya at
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-        'rest_framework.authentication.SessionAuthentication',      
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 10, 
+    'PAGE_SIZE': 10,
     'DEFAULT_FILTER_BACKENDS': ['django_filters.rest_framework.DjangoFilterBackend'],
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': os.environ.get('DRF_ANON_RATE', '20/minute'),
+        'user': os.environ.get('DRF_USER_RATE', '100/minute'),
+    },
 }
 
 # --- JWT (JSON Web Token) AYARLARI ---
@@ -193,11 +243,46 @@ SIMPLE_JWT = {
 
 # --- SWAGGER / OPENAPI AYARLARI ---
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'NetArchitect API',
+    'TITLE': 'OmniOps API',
     'DESCRIPTION': 'Ağ Cihazları, IPAM, Otomatik Konfigürasyon ve Bilet Yönetim Sistemi',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'COMPONENT_SPLIT_REQUEST': True,
+    'ENUM_NAME_OVERRIDES': {
+        'TicketStatusEnum': 'inventory.models.Ticket.STATUS_CHOICES',
+        'RemoteProbeStatusEnum': 'inventory.models.RemoteProbe.STATUS_CHOICES',
+        'FieldVisitStatusEnum': 'inventory.models.FieldVisit.STATUS_CHOICES',
+        'ITAssetStatusEnum': 'inventory.models.ITAsset.STATUS_CHOICES',
+        'ChangeRequestStatusEnum': 'inventory.models.ChangeRequest.STATUS_CHOICES',
+        'FactoryAreaCriticalityEnum': 'inventory.models.FactoryArea.CRITICALITY_CHOICES',
+        'ProcurementStatusEnum': 'inventory.models.ProcurementRequest.STATUS_CHOICES',
+        'ProcurementCategoryEnum': 'inventory.models.ProcurementRequest.CATEGORY_CHOICES',
+        'BackupJobStatusEnum': 'inventory.models.BackupJobMonitor.STATUS_CHOICES',
+        'VendorSupportStatusEnum': 'inventory.models.VendorSupportCase.STATUS_CHOICES',
+        'MajorIncidentSeverityEnum': 'inventory.models.MajorIncident.SEVERITY_CHOICES',
+        'MajorIncidentStatusEnum': 'inventory.models.MajorIncident.STATUS_CHOICES',
+        'AccessRequestTypeEnum': 'inventory.models.AccessRequest.ACCESS_TYPE_CHOICES',
+        'AccessRequestStatusEnum': 'inventory.models.AccessRequest.STATUS_CHOICES',
+        'PrinterFleetKindEnum': 'inventory.models.PrinterFleetItem.DEVICE_KIND_CHOICES',
+        'PrinterFleetStatusEnum': 'inventory.models.PrinterFleetItem.STATUS_CHOICES',
+        'RunbookCategoryEnum': 'inventory.models.Runbook.CATEGORY_CHOICES',
+        'RemoteAccessMethodEnum': 'inventory.models.RemoteAccessGrant.ACCESS_METHOD_CHOICES',
+        'RemoteAccessStatusEnum': 'inventory.models.RemoteAccessGrant.STATUS_CHOICES',
+        'CameraDeviceTypeEnum': 'inventory.models.CameraDevice.DEVICE_TYPE_CHOICES',
+        'CameraStatusEnum': 'inventory.models.CameraDevice.STATUS_CHOICES',
+        'BusinessAppTypeEnum': 'inventory.models.BusinessApplication.APP_TYPE_CHOICES',
+        'BusinessAppStatusEnum': 'inventory.models.BusinessApplication.STATUS_CHOICES',
+        'ReportTemplateTypeEnum': 'inventory.models.ReportTemplate.REPORT_TYPE_CHOICES',
+        'ChangeCalendarEventTypeEnum': 'inventory.models.ChangeCalendarEvent.EVENT_TYPE_CHOICES',
+        'ChangeCalendarStatusEnum': 'inventory.models.ChangeCalendarEvent.STATUS_CHOICES',
+        'ServiceDependencyTypeEnum': 'inventory.models.ServiceDependency.DEPENDENCY_TYPE_CHOICES',
+        'IntegrationHealthTypeEnum': 'inventory.models.IntegrationHealthCheck.INTEGRATION_TYPE_CHOICES',
+        'IntegrationHealthStatusEnum': 'inventory.models.IntegrationHealthCheck.STATUS_CHOICES',
+        'ComplianceFrameworkEnum': 'inventory.models.ComplianceControl.FRAMEWORK_CHOICES',
+        'ComplianceStatusEnum': 'inventory.models.ComplianceControl.STATUS_CHOICES',
+        'DocumentOutputJobTypeEnum': 'inventory.models.DocumentOutputJob.JOB_TYPE_CHOICES',
+        'DocumentOutputJobStatusEnum': 'inventory.models.DocumentOutputJob.STATUS_CHOICES',
+    },
 }
 
 # ==========================================
@@ -220,6 +305,10 @@ CELERY_BEAT_SCHEDULE = {
     'sla-ve-lisans-uyarilari': {
         'task': 'inventory.tasks.otomatik_sla_ve_lisans_kontrolu',
         'schedule': crontab(hour=8, minute=0),
+    },
+    'sla-eskalasyon-kontrolu': {
+        'task': 'inventory.tasks.check_sla_and_escalate',
+        'schedule': crontab(minute='*/15'),
     },
     'zabbix-threshold-monitor-5dk': {
         'task': 'inventory.tasks.zabbix_threshold_monitor',
@@ -254,7 +343,7 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 # ==========================================
-# --- NETARCHITECT GÜVENLİK VE WEBHOOK AYARLARI ---
+# --- OMNIOPS GÜVENLİK VE WEBHOOK AYARLARI ---
 # ==========================================
 WAZUH_API_KEY = os.environ.get('WAZUH_API_KEY', '')
 WEBHOOK_ALLOWED_IPS = [ip.strip() for ip in os.environ.get('WEBHOOK_ALLOWED_IPS', '127.0.0.1,::1').split(',') if ip.strip()]
@@ -285,9 +374,9 @@ if os.environ.get('SAML_METADATA_URL'):
 # ==========================================
 
 # OIDC (OpenID Connect) Genel Ayarları
-SOCIAL_AUTH_OIDC_ENDPOINT = os.environ.get('SOCIAL_AUTH_OIDC_ENDPOINT', 'https://accounts.google.com/.well-known/openid-configuration')
-SOCIAL_AUTH_OIDC_KEY = os.environ.get('SOCIAL_AUTH_OIDC_KEY', 'oidc-client-id')
-SOCIAL_AUTH_OIDC_SECRET = os.environ.get('SOCIAL_AUTH_OIDC_SECRET', 'oidc-client-secret')
+SOCIAL_AUTH_OIDC_ENDPOINT = os.environ.get('SOCIAL_AUTH_OIDC_ENDPOINT', '')
+SOCIAL_AUTH_OIDC_KEY = os.environ.get('SOCIAL_AUTH_OIDC_KEY', '')
+SOCIAL_AUTH_OIDC_SECRET = os.environ.get('SOCIAL_AUTH_OIDC_SECRET', '')
 
 # Azure AD / Azure B2C Ayarları
 SOCIAL_AUTH_AZUREAD_OAUTH2_TENANT_ID = os.environ.get('SOCIAL_AUTH_AZUREAD_OAUTH2_TENANT_ID', '')
@@ -302,20 +391,20 @@ SOCIAL_AUTH_OKTA_OPENID_SECRET = os.environ.get('SOCIAL_AUTH_OKTA_OPENID_SECRET'
 # SAML 2.0 Ayarları
 SOCIAL_AUTH_SAML_ORG_INFO = {
     'en-US': {
-        'name': 'NetArchitect',
-        'displayname': 'NetArchitect - Network Management System',
-        'url': os.environ.get('SAML_ORG_URL', 'https://netarchitect.example.com/'),
+        'name': 'OmniOps',
+        'displayname': 'OmniOps - Network Management System',
+        'url': os.environ.get('SAML_ORG_URL', 'https://omniops.example.com/'),
     },
 }
 
 SOCIAL_AUTH_SAML_TECHNICAL_CONTACT = {
     'givenName': 'IT Support',
-    'emailAddress': os.environ.get('SAML_TECH_CONTACT_EMAIL', 'support@netarchitect.example.com'),
+    'emailAddress': os.environ.get('SAML_TECH_CONTACT_EMAIL', 'support@omniops.example.com'),
 }
 
 SOCIAL_AUTH_SAML_SUPPORT_CONTACT = {
     'givenName': 'IT Support',
-    'emailAddress': os.environ.get('SAML_SUPPORT_CONTACT_EMAIL', 'support@netarchitect.example.com'),
+    'emailAddress': os.environ.get('SAML_SUPPORT_CONTACT_EMAIL', 'support@omniops.example.com'),
 }
 
 # SAML Attribute Mapping: SAML'deki attributes'ları Django user fields'ine eşle
@@ -329,8 +418,8 @@ SOCIAL_AUTH_SAML_ATTRIBUTE_MAPPING = {
 
 # SAML Metadata dosyasının URL'si (IdP'den alınır)
 SAML_METADATA_URL = os.environ.get('SAML_METADATA_URL', '')
-SAML_ENTITY_ID = os.environ.get('SAML_ENTITY_ID', 'https://netarchitect.example.com/saml2/metadata/')
-SAML_ASSERTION_CONSUMER_SERVICE_URL = os.environ.get('SAML_ACS_URL', 'https://netarchitect.example.com/accounts/complete/saml/')
+SAML_ENTITY_ID = os.environ.get('SAML_ENTITY_ID', 'https://omniops.example.com/saml2/metadata/')
+SAML_ASSERTION_CONSUMER_SERVICE_URL = os.environ.get('SAML_ACS_URL', 'https://omniops.example.com/accounts/complete/saml/')
 
 # Social Auth Just-in-Time Provisioning Pipeline
 SOCIAL_AUTH_PIPELINE = (
@@ -410,6 +499,73 @@ SOCIAL_AUTH_SAML_STRICT_METADATA_VALIDATION = os.environ.get('SOCIAL_AUTH_SAML_S
 # Kullanıcı kaydında email doğrulaması gerekliliği
 SOCIAL_AUTH_EMAIL_VALIDATION_FUNCTION = 'social_core.utils.silent_email_validator'
 SOCIAL_AUTH_EMAIL_REQUIRED = True
+
+# ==========================================
+# --- ÜRETİM GÜVENLİK AYARLARI ---
+# ==========================================
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Lax'
+    CSRF_COOKIE_SAMESITE = 'Lax'
+    SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'True').lower() in ('1', 'true', 'yes')
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = os.environ.get('SECURE_HSTS_PRELOAD', 'False').lower() in ('1', 'true', 'yes')
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_BROWSER_XSS_FILTER = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+SESSION_COOKIE_AGE = int(os.environ.get('SESSION_COOKIE_AGE', str(60 * 60 * 8)))
+SESSION_SAVE_EVERY_REQUEST = os.environ.get('SESSION_SAVE_EVERY_REQUEST', 'False').lower() in ('1', 'true', 'yes')
+
+LOG_LEVEL = os.environ.get('DJANGO_LOG_LEVEL', 'INFO')
+LOG_DIR = BASE_DIR / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'standard': {
+            'format': '[{asctime}] {levelname} {name}: {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': LOG_DIR / 'omniops.log',
+            'maxBytes': int(os.environ.get('DJANGO_LOG_MAX_BYTES', str(10 * 1024 * 1024))),
+            'backupCount': int(os.environ.get('DJANGO_LOG_BACKUP_COUNT', '5')),
+            'formatter': 'standard',
+            'encoding': 'utf-8',
+        },
+    },
+    'root': {
+        'handlers': ['console', 'file'],
+        'level': LOG_LEVEL,
+    },
+    'loggers': {
+        'django.security': {
+            'handlers': ['console', 'file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'inventory': {
+            'handlers': ['console', 'file'],
+            'level': LOG_LEVEL,
+            'propagate': False,
+        },
+    },
+}
 
 # SSO ile kayıtlı olsa da yerel şifre değişikliğine izin ver
 SOCIAL_AUTH_DEFAULT_USERNAME_FUNCTION = 'social_core.utils.slugify'

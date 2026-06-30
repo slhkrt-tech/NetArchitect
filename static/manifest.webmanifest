@@ -1,0 +1,10 @@
+{
+  "name": "OmniOps Factory IT Suite",
+  "short_name": "OmniOps",
+  "start_url": "/offline-saha/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#7c3aed",
+  "description": "Fabrika bilgi işlem operasyonları için all-in-one yönetim platformu",
+  "icons": []
+}

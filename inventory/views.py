@@ -13,15 +13,17 @@ from django.core.mail import send_mail
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import UpdateView, DeleteView
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.urls import reverse_lazy
 from .decorators import role_required  # RBAC Güvenlik Kilidi
 from guardian.shortcuts import get_objects_for_user  # Guardian OLP Kütüphanesi
+import logging
 import ipaddress
 import csv
 import io
 import json
 import difflib
+from html import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -35,24 +37,106 @@ from .utils import (
 )
 from .tasks import active_response_block_ip
 
-from .models import Device, Ticket, IpAddress, SystemLog, DeviceBackup, ITAsset, License, Port, KnowledgeBaseArticle, VendorContract, ChangeRequest, ServiceCatalogItem
+from .models import (
+    Device, Ticket, IpAddress, SystemLog, DeviceBackup, ITAsset, License, Port,
+    KnowledgeBaseArticle, VendorContract, ChangeRequest, ServiceCatalogItem,
+    TicketCategory, NetworkScan, NetworkScanHost,
+)
 
 from .forms import (
     DeviceForm, TicketForm, RegisterUserForm, 
-    PublicRegistrationForm, IpAddressForm, ITAssetForm, LicenseForm
+    PublicRegistrationForm, IpAddressForm, ITAssetForm, LicenseForm, CustomerTicketForm
 )
+from .dlp import inspect_text_for_dlp, has_blocking_dlp_event
+
+logger = logging.getLogger(__name__)
+
 
 def send_notification_email(subject, message):
     try:
         send_mail(
-            subject=f"[NetArchitect] {subject}",
+            subject=f"[OmniOps] {subject}",
             message=message,
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@netarchitect.local'),
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@omniops.local'),
             recipient_list=[admin[1] for admin in getattr(settings, 'ADMINS', [('Admin', 'admin@firma.com')])],
             fail_silently=True, 
         )
-    except Exception as e:
-        print(f"Mail gönderilemedi: {e}")
+    except Exception:
+        logger.exception("Bildirim e-postası gönderilemedi.")
+
+
+@login_required
+def global_search_api(request):
+    """OmniOps genelinde piyasa standardı hızlı arama / komut paleti verisi."""
+    query = (request.GET.get('q') or '').strip()
+    limit = 6
+
+    quick_actions = [
+        {'type': 'Aksiyon', 'title': 'Yeni Ticket Aç', 'subtitle': 'Servis masası ve sistem biletleri', 'url': '/panel/', 'icon': 'mdi:ticket-plus-outline'},
+        {'type': 'Aksiyon', 'title': 'Komuta Merkezi', 'subtitle': 'VPN, chat, kamera ve uygulama portalı', 'url': '/komuta-merkezi/', 'icon': 'mdi:view-dashboard-edit-outline'},
+        {'type': 'Aksiyon', 'title': 'Yönetişim Merkezi', 'subtitle': 'Takvim, CMDB, denetim ve çıktılar', 'url': '/yonetisim-merkezi/', 'icon': 'mdi:calendar-check-outline'},
+        {'type': 'Aksiyon', 'title': 'Kurulum & Sağlık Merkezi', 'subtitle': 'Canlıya alma, readiness ve ilk kurulum kontrolleri', 'url': '/kurulum-merkezi/', 'icon': 'mdi:progress-wrench'},
+        {'type': 'Aksiyon', 'title': 'Derin Ağ Keşfi', 'subtitle': 'Ping, ARP ve raw socket tarama', 'url': '/ag-tarayici/', 'icon': 'mdi:radar'},
+        {'type': 'Aksiyon', 'title': 'Raporlama Merkezi', 'subtitle': 'PDF ve CSV çıktıları', 'url': '/raporlar/', 'icon': 'mdi:file-chart-outline'},
+        {'type': 'Aksiyon', 'title': 'Yönetici Bilgilendirme', 'subtitle': 'Tek sayfa özet, PDF ve Word çıktıları', 'url': '/yonetici-bilgilendirme/', 'icon': 'mdi:chart-box-outline'},
+    ]
+
+    results = []
+
+    def add_result(result_type, title, subtitle, url, icon):
+        results.append({
+            'type': result_type,
+            'title': str(title),
+            'subtitle': str(subtitle or ''),
+            'url': url,
+            'icon': icon,
+        })
+
+    if not query:
+        return JsonResponse({'results': quick_actions})
+
+    if request.user.is_staff:
+        from .models import (
+            BusinessApplication, CameraDevice, MajorIncident, Runbook,
+            RemoteAccessGrant, ReportTemplate,
+        )
+
+        for device in Device.objects.filter(models.Q(name__icontains=query) | models.Q(mac_address__icontains=query)).order_by('name')[:limit]:
+            add_result('Cihaz', device.name, f"{device.device_type} · {device.mac_address or 'MAC yok'}", '/topoloji/', 'mdi:router-network')
+
+        for asset in ITAsset.objects.filter(models.Q(name__icontains=query) | models.Q(serial_number__icontains=query) | models.Q(assigned_to__icontains=query)).order_by('name')[:limit]:
+            add_result('Varlık', asset.name, f"{asset.get_asset_type_display()} · {asset.assigned_to or 'Zimmet yok'}", '/it-envanter/', 'mdi:laptop')
+
+        ticket_qs = Ticket.objects.filter(models.Q(title__icontains=query) | models.Q(description__icontains=query)).order_by('-created_at')[:limit]
+    else:
+        ticket_qs = Ticket.objects.filter(created_by=request.user).filter(models.Q(title__icontains=query) | models.Q(description__icontains=query)).order_by('-created_at')[:limit]
+
+    for ticket in ticket_qs:
+        add_result('Ticket', ticket.title, f"{ticket.get_status_display()} · {ticket.get_priority_display()}", f'/talep/{ticket.id}/', 'mdi:ticket-confirmation-outline')
+
+    for article in KnowledgeBaseArticle.objects.filter(models.Q(title__icontains=query) | models.Q(content__icontains=query)).order_by('-helpful_count')[:limit]:
+        add_result('Bilgi Bankası', article.title, article.get_category_display(), '/bilgi-bankasi/', 'mdi:book-open-page-variant-outline')
+
+    if request.user.is_staff:
+        for app in BusinessApplication.objects.filter(models.Q(name__icontains=query) | models.Q(owner_department__icontains=query)).order_by('name')[:limit]:
+            add_result('Uygulama', app.name, f"{app.get_app_type_display()} · {app.get_status_display()}", app.url or '/komuta-merkezi/', 'mdi:apps')
+
+        for camera in CameraDevice.objects.filter(models.Q(name__icontains=query) | models.Q(location__icontains=query) | models.Q(ip_address__icontains=query)).order_by('name')[:limit]:
+            add_result('Kamera', camera.name, f"{camera.location or 'Lokasyon yok'} · {camera.get_status_display()}", camera.stream_url or '/komuta-merkezi/', 'mdi:cctv')
+
+        for incident in MajorIncident.objects.filter(title__icontains=query).order_by('-started_at')[:limit]:
+            add_result('Major Incident', incident.title, f"{incident.get_severity_display()} · {incident.get_status_display()}", '/servis-surecleri/', 'mdi:alert-decagram-outline')
+
+        for grant in RemoteAccessGrant.objects.filter(models.Q(employee_name__icontains=query) | models.Q(target_resource__icontains=query)).order_by('-created_at')[:limit]:
+            add_result('Uzaktan Erişim', grant.employee_name, f"{grant.get_access_method_display()} · {grant.target_resource}", '/komuta-merkezi/', 'mdi:vpn')
+
+        for runbook in Runbook.objects.filter(models.Q(title__icontains=query) | models.Q(steps__icontains=query)).order_by('title')[:limit]:
+            add_result('Runbook', runbook.title, runbook.get_category_display(), '/servis-surecleri/', 'mdi:book-cog-outline')
+
+        for report in ReportTemplate.objects.filter(title__icontains=query).order_by('title')[:limit]:
+            add_result('Rapor', report.title, f"{report.get_report_type_display()} · {report.output_format}", '/komuta-merkezi/', 'mdi:file-chart-outline')
+
+    return JsonResponse({'results': results[:30]})
 
 
 # ========================================================
@@ -284,6 +368,7 @@ def it_inventory_view(request):
 
 
 @login_required
+@role_required(['Ağ Ekibi', 'Yönetim'])
 def config_generator(request):
     generated_config = None
     if request.method == 'POST':
@@ -355,6 +440,7 @@ def device_backup_view(request):
     return render(request, 'backup.html', {'devices': Device.objects.filter(is_active=True), 'recent_backups': recent_backups})
 
 @login_required
+@role_required(['Sistem Ekibi', 'Yönetim'])
 def subnet_calculator(request):
     results = None
     if request.method == 'POST':
@@ -362,13 +448,41 @@ def subnet_calculator(request):
     return render(request, 'subnet_calc.html', {'results': results})
 
 @login_required
+@role_required(['Sistem Ekibi', 'Yönetim'])
 def network_scanner(request):
     results = None
+    selected_method = 'hybrid'
     if request.method == 'POST':
-        results = scan_network(request.POST.get('network'))
-    return render(request, 'scanner.html', {'results': results})
+        network = request.POST.get('network')
+        method = request.POST.get('method', 'hybrid')
+        selected_method = method
+        results = scan_network(network, method=method)
+        scan = NetworkScan.objects.create(
+            requested_by=request.user,
+            network=network,
+            method=method,
+            total_hosts=results.get('total_scanned', 0),
+            active_hosts=len(results.get('active_ips', [])),
+            duration_ms=results.get('duration_ms', 0),
+            error=results.get('error', ''),
+        )
+        for host in results.get('active_ips', []):
+            NetworkScanHost.objects.create(
+                scan=scan,
+                ip_address=host.get('ip'),
+                mac_address=host.get('mac', ''),
+                hostname=host.get('hostname', ''),
+                vendor=host.get('vendor', ''),
+                detected_by=host.get('detected_by', ''),
+                latency_ms=host.get('latency_ms'),
+                raw_socket_open=host.get('raw_socket_open', False),
+            )
+        results['scan_id'] = scan.id
+    recent_scans = NetworkScan.objects.select_related('requested_by').order_by('-created_at')[:5]
+    return render(request, 'scanner.html', {'results': results, 'recent_scans': recent_scans, 'selected_method': selected_method})
 
 @login_required
+@role_required(['Ağ Ekibi', 'Sistem Ekibi', 'Yönetim'])
 def export_csv(request):
     response = HttpResponse(content_type='text/csv; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="devices.csv"'
@@ -382,6 +496,7 @@ def export_csv(request):
     return response
 
 @login_required
+@role_required(['Ağ Ekibi', 'Sistem Ekibi', 'Yönetim'])
 def export_pdf(request):
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="devices.pdf"'
@@ -410,6 +525,7 @@ def export_pdf(request):
     return response
 
 @login_required
+@role_required(['Sistem Ekibi', 'Yönetim'])
 def visual_ipam(request):
     ip_form = IpAddressForm(request.POST or None)
     error_msg = None
@@ -456,6 +572,7 @@ def live_monitor(request):
 
 
 @login_required
+@role_required(['Ağ Ekibi', 'Sistem Ekibi', 'Yönetim'])
 def get_monitor_data(request):
     import random
     
@@ -498,6 +615,7 @@ def get_monitor_data(request):
     return JsonResponse(payload)
 
 @login_required
+@role_required(['Sistem Ekibi', 'Yönetim'])
 def system_logs_view(request):
     current_filter = request.GET.get('action', '')
     logs = SystemLog.objects.all()
@@ -601,6 +719,7 @@ def search_kb_api(request):
     return JsonResponse({'results': results})
 
 @login_required
+@role_required(['Ağ Ekibi', 'Yönetim'])
 def config_diff_view(request, device_id):
     device = get_object_or_404(Device, id=device_id)
     backups = DeviceBackup.objects.filter(device=device).order_by('-created_at')
@@ -683,7 +802,8 @@ def register_page(request):
             if request.POST.get('password'):
                 user.set_password(request.POST.get('password'))
             user.save()
-            # Ensure correct auth backend is set before login when multiple backends configured
+            from .helpdesk import assign_customer_role
+            assign_customer_role(user)
             from django.conf import settings as _settings
             preferred_backend = 'django.contrib.auth.backends.ModelBackend'
             if preferred_backend not in _settings.AUTHENTICATION_BACKENDS:
@@ -697,7 +817,7 @@ def register_page(request):
 def user_panel(request):
     if request.user.is_staff:
         return redirect('dashboard')
-    form = TicketForm()
+    form = CustomerTicketForm()
     if request.method == 'POST':
         action = request.POST.get('action')
         if action == 'catalog_request':
@@ -710,8 +830,17 @@ def user_panel(request):
             messages.success(request, f"'{catalog_item.title}' talebiniz başarıyla oluşturuldu.")
             return redirect('user_panel')
         else:
-            form = TicketForm(request.POST)
+            form = CustomerTicketForm(request.POST)
             if form.is_valid():
+                dlp_events = inspect_text_for_dlp(
+                    f"{form.cleaned_data.get('title', '')}\n{form.cleaned_data.get('description', '')}",
+                    user=request.user,
+                    source='customer_ticket',
+                    block=True,
+                )
+                if has_blocking_dlp_event(dlp_events):
+                    messages.error(request, "Talep metni hassas veri içerdiği için DLP politikası tarafından engellendi.")
+                    return redirect('user_panel')
                 ticket = form.save(commit=False)
                 ticket.created_by = request.user
                 ticket.save()
@@ -807,12 +936,58 @@ def custom_admin(request):
                         )
                 change_req.save()
             return redirect('custom_admin')
+
+        elif action == 'submit_ticket':
+            form = TicketForm(request.POST)
+            if form.is_valid():
+                ticket = form.save(commit=False)
+                ticket.created_by = request.user
+                ticket.save()
+                messages.success(request, f'Talep #{ticket.id} oluşturuldu.')
+            else:
+                messages.error(request, 'Talep formu geçersiz.')
+            return redirect('custom_admin')
+
+        elif action == 'edit_ticket':
+            ticket = get_object_or_404(Ticket, pk=request.POST.get('ticket_id'))
+            form = TicketForm(request.POST, instance=ticket)
+            if form.is_valid():
+                form.save()
+                messages.success(request, f'Talep #{ticket.id} güncellendi.')
+            return redirect('custom_admin')
+
+        elif action == 'submit_user':
+            form = RegisterUserForm(request.POST)
+            if form.is_valid():
+                user = form.save()
+                from .helpdesk import ensure_default_groups
+                ensure_default_groups()
+                role = request.POST.get('role', 'Müşteri')
+                from django.contrib.auth.models import Group
+                group = Group.objects.filter(name=role).first()
+                if group:
+                    user.groups.add(group)
+                from .models import UserProfile
+                UserProfile.objects.get_or_create(user=user)
+                messages.success(request, f'Kullanıcı oluşturuldu: {user.username}')
+            else:
+                messages.error(request, 'Kullanıcı formu geçersiz.')
+            return redirect('custom_admin')
+
+        elif action == 'submit_device':
+            form = DeviceForm(request.POST)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'Cihaz eklendi.')
+            return redirect('custom_admin')
+
     context = {
         'device_form': DeviceForm(), 'ticket_form': TicketForm(), 'user_form': RegisterUserForm(),
-        'devices': Device.objects.all().order_by('-id'), 
-        'tickets': Ticket.objects.all().order_by('-created_at'),
-        'users': User.objects.all().order_by('-date_joined'),
-        'change_requests': ChangeRequest.objects.all().order_by('-created_at')
+        'devices': Device.objects.all().order_by('-id'),
+        'tickets': Ticket.objects.select_related('created_by', 'assigned_to').all().order_by('-created_at'),
+        'users': User.objects.prefetch_related('groups').all().order_by('-date_joined'),
+        'change_requests': ChangeRequest.objects.all().order_by('-created_at'),
+        'ticket_categories': TicketCategory.objects.filter(is_active=True),
     }
     return render(request, 'custom_admin.html', context)
 
@@ -825,17 +1000,21 @@ def device_alert_webhook(request):
     if request.method != 'POST':
         return JsonResponse({'status': 'error', 'message': 'Sadece POST desteklenir.'}, status=405)
 
-    # DİKKAT: Docker sanal ağ (Bridge) IP çakışmalarını önlemek için 
-    # IP adresi kısıtlaması (Whitelist) demo için tamamen kapatıldı.
+    allowed_ips = getattr(settings, 'WEBHOOK_ALLOWED_IPS', [])
+    client_ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', '')).split(',')[0].strip()
+    if allowed_ips and client_ip not in allowed_ips:
+        SystemLog.objects.create(
+            action='SYSTEM',
+            details=f"Webhook IP reddedildi: {client_ip}"
+        )
+        return JsonResponse({'status': 'error', 'message': 'Yetkisiz IP adresi.'}, status=403)
 
     provided_key = request.headers.get('X-API-Key') or request.headers.get('Authorization')
     if provided_key and provided_key.startswith('Bearer '):
         provided_key = provided_key.split(' ')[1]
 
-    expected_key = getattr(settings, 'WAZUH_API_KEY', 'default_secret_key')
-    valid_keys = [expected_key, 'your_webhook_api_key_here', 'senin_gizli_api_anahtarin', 'netarchitect']
-    
-    if provided_key not in valid_keys:
+    expected_key = getattr(settings, 'WAZUH_API_KEY', '')
+    if not expected_key or provided_key != expected_key:
         SystemLog.objects.create(
             action='SYSTEM', 
             details=f"🚨 GÜVENLİK İHLALİ: Webhook adresine geçersiz şifre ile erişim denemesi! Gelen Key: {provided_key}"
@@ -893,6 +1072,244 @@ def device_alert_webhook(request):
     if ticket:
         response_data['ticket_id'] = ticket.id
     return JsonResponse(response_data)
+
+
+def _count_open_tickets():
+    return Ticket.objects.exclude(status__in=['Kapatildi', 'Cozuldu']).count()
+
+
+def build_executive_report_context():
+    """Yöneticiye verilecek tek sayfalık OmniOps operasyon özeti."""
+    from .models import (
+        AccessRequest, BackupJobMonitor, BusinessApplication, CameraDevice,
+        ChangeCalendarEvent, ComplianceControl, ConsumableItem, DLPEvent,
+        DocumentOutputJob, EmployeeITProcess, FactoryArea, IntegrationHealthCheck,
+        MajorIncident, PrinterFleetItem, ProcurementRequest, RemoteAccessGrant,
+        Runbook, ServiceDependency, VendorSupportCase,
+    )
+
+    now = timezone.now()
+    today = now.date()
+    next_30_days = today + timedelta(days=30)
+
+    low_stock_count = sum(1 for item in ConsumableItem.objects.all() if item.is_low_stock)
+    printer_alert_count = sum(1 for item in PrinterFleetItem.objects.all() if item.needs_consumable)
+    active_remote_count = sum(1 for grant in RemoteAccessGrant.objects.all() if grant.is_active_now)
+    unhealthy_backup_count = sum(1 for job in BackupJobMonitor.objects.all() if job.is_unhealthy)
+    unhealthy_integrations = sum(1 for check in IntegrationHealthCheck.objects.all() if check.is_unhealthy)
+
+    open_ticket_count = _count_open_tickets()
+    critical_incident_count = MajorIncident.objects.exclude(status='resolved').count()
+    security_events_count = DLPEvent.objects.count()
+    compliance_open_count = ComplianceControl.objects.exclude(status='compliant').count()
+
+    risk_score = min(
+        100,
+        (open_ticket_count * 3)
+        + (critical_incident_count * 14)
+        + (unhealthy_backup_count * 12)
+        + (security_events_count * 4)
+        + (compliance_open_count * 8)
+        + (unhealthy_integrations * 10),
+    )
+
+    readiness = 100
+    if open_ticket_count:
+        readiness -= min(18, open_ticket_count * 2)
+    if critical_incident_count:
+        readiness -= min(25, critical_incident_count * 10)
+    if unhealthy_backup_count:
+        readiness -= 12
+    if compliance_open_count:
+        readiness -= min(18, compliance_open_count * 4)
+    readiness = max(0, readiness)
+
+    kpis = [
+        {'title': 'Operasyon Hazırlığı', 'value': f'%{readiness}', 'detail': 'Genel canlı kullanım skoru', 'icon': 'mdi:gauge', 'tone': 'success' if readiness >= 80 else 'warning'},
+        {'title': 'Açık Ticket', 'value': open_ticket_count, 'detail': 'Servis masasında bekleyen iş', 'icon': 'mdi:ticket-confirmation-outline', 'tone': 'primary'},
+        {'title': 'Kritik Olay', 'value': critical_incident_count, 'detail': 'Major incident ve servis kesintisi', 'icon': 'mdi:alert-decagram-outline', 'tone': 'danger' if critical_incident_count else 'success'},
+        {'title': 'Risk Skoru', 'value': risk_score, 'detail': 'Yedek, güvenlik, uyum ve operasyon riski', 'icon': 'mdi:shield-alert-outline', 'tone': 'warning' if risk_score else 'success'},
+    ]
+
+    sections = [
+        {
+            'title': 'Altyapı ve Ağ',
+            'icon': 'mdi:server-network',
+            'metrics': [
+                ('Cihaz', Device.objects.count()),
+                ('IP kaydı', IpAddress.objects.count()),
+                ('Son tarama', NetworkScan.objects.count()),
+                ('Aktif kamera', CameraDevice.objects.exclude(status='offline').count()),
+            ],
+        },
+        {
+            'title': 'Servis Masası',
+            'icon': 'mdi:headset',
+            'metrics': [
+                ('Toplam ticket', Ticket.objects.count()),
+                ('Açık ticket', open_ticket_count),
+                ('Kategori', TicketCategory.objects.count()),
+                ('Bilgi bankası', KnowledgeBaseArticle.objects.count()),
+            ],
+        },
+        {
+            'title': 'Fabrika Operasyonları',
+            'icon': 'mdi:factory',
+            'metrics': [
+                ('Fabrika alanı', FactoryArea.objects.count()),
+                ('Düşük stok', low_stock_count),
+                ('Personel süreci', EmployeeITProcess.objects.exclude(status='closed').count()),
+                ('Printer uyarısı', printer_alert_count),
+            ],
+        },
+        {
+            'title': 'İş Sürekliliği',
+            'icon': 'mdi:database-sync-outline',
+            'metrics': [
+                ('Sağlıksız yedek', unhealthy_backup_count),
+                ('Aktif VPN/erişim', active_remote_count),
+                ('İş uygulaması', BusinessApplication.objects.count()),
+                ('Runbook', Runbook.objects.count()),
+            ],
+        },
+        {
+            'title': 'Yönetişim ve Uyum',
+            'icon': 'mdi:clipboard-check-outline',
+            'metrics': [
+                ('Yaklaşan değişiklik', ChangeCalendarEvent.objects.filter(start_at__date__range=(today, next_30_days)).count()),
+                ('CMDB bağımlılığı', ServiceDependency.objects.count()),
+                ('Uyumsuz kontrol', compliance_open_count),
+                ('Çıktı işi', DocumentOutputJob.objects.exclude(status='delivered').count()),
+            ],
+        },
+        {
+            'title': 'Tedarik ve Destek',
+            'icon': 'mdi:handshake-outline',
+            'metrics': [
+                ('Bekleyen satın alma', ProcurementRequest.objects.filter(status='pending').count()),
+                ('Vendor case', VendorSupportCase.objects.exclude(status='resolved').count()),
+                ('Erişim talebi', AccessRequest.objects.filter(status='pending').count()),
+                ('Entegrasyon alarmı', unhealthy_integrations),
+            ],
+        },
+    ]
+
+    alerts = [
+        {'title': 'Açık kritik olaylar', 'value': critical_incident_count, 'tone': 'danger', 'action': 'Servis Süreç Merkezi'},
+        {'title': 'Sağlıksız yedek işleri', 'value': unhealthy_backup_count, 'tone': 'warning', 'action': 'IT Operasyon Merkezi'},
+        {'title': 'Düşük stok kalemleri', 'value': low_stock_count, 'tone': 'warning', 'action': 'Fabrika IT Operasyonları'},
+        {'title': 'Uyumsuz kontroller', 'value': compliance_open_count, 'tone': 'danger', 'action': 'Yönetişim Merkezi'},
+        {'title': 'Entegrasyon alarmları', 'value': unhealthy_integrations, 'tone': 'warning', 'action': 'Yönetişim Merkezi'},
+    ]
+
+    return {
+        'generated_at': now,
+        'period_label': f'{today.strftime("%d.%m.%Y")} yönetici özeti',
+        'kpis': kpis,
+        'sections': sections,
+        'alerts': alerts,
+        'recommendations': [
+            'Kritik olaylar ve sağlıksız yedek işleri günlük operasyon toplantısında ilk gündem yapılmalı.',
+            'Düşük stok ve printer uyarıları satın alma sürecine bağlanarak üretim hattı kesintileri önlenmeli.',
+            'Uyum kontrolleri ve entegrasyon alarmları haftalık yönetici raporunda kapatma tarihiyle izlenmeli.',
+            'Runbook ve bilgi bankası içerikleri artırılarak vardiya ekiplerinin bağımlılığı azaltılmalı.',
+        ],
+    }
+
+
+def _build_executive_pdf(context):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=28, leftMargin=28, topMargin=32, bottomMargin=28)
+    styles = getSampleStyleSheet()
+    elements = [
+        Paragraph('OmniOps Factory IT Suite - Yonetici Bilgilendirme Raporu', styles['Heading1']),
+        Paragraph(context['period_label'], styles['Normal']),
+        Spacer(1, 14),
+    ]
+
+    kpi_data = [['KPI', 'Deger', 'Aciklama']]
+    for item in context['kpis']:
+        kpi_data.append([item['title'], str(item['value']), item['detail']])
+    kpi_table = Table(kpi_data, colWidths=[155, 80, 265], repeatRows=1)
+    kpi_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#111827')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#d1d5db')),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#f8fafc')),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(kpi_table)
+    elements.append(Spacer(1, 14))
+
+    for section in context['sections']:
+        elements.append(Paragraph(section['title'], styles['Heading2']))
+        data = [['Metrik', 'Deger']] + [[name, str(value)] for name, value in section['metrics']]
+        table = Table(data, colWidths=[260, 120])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#7c3aed')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('GRID', (0, 0), (-1, -1), 0.4, colors.HexColor('#e5e7eb')),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#ffffff')),
+        ]))
+        elements.extend([table, Spacer(1, 10)])
+
+    elements.append(Paragraph('Yonetim Onerileri', styles['Heading2']))
+    for recommendation in context['recommendations']:
+        elements.append(Paragraph(f'- {recommendation}', styles['Normal']))
+
+    doc.build(elements)
+    return buffer.getvalue()
+
+
+def _build_executive_word_html(context):
+    rows = []
+    for section in context['sections']:
+        metrics = ''.join(f'<li><strong>{escape(name)}</strong>: {escape(str(value))}</li>' for name, value in section['metrics'])
+        rows.append(f'<h2>{escape(section["title"])}</h2><ul>{metrics}</ul>')
+    kpis = ''.join(f'<tr><td>{escape(item["title"])}</td><td>{escape(str(item["value"]))}</td><td>{escape(item["detail"])}</td></tr>' for item in context['kpis'])
+    recommendations = ''.join(f'<li>{escape(item)}</li>' for item in context['recommendations'])
+    return f"""<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>OmniOps Yönetici Raporu</title></head>
+<body style="font-family:Arial,sans-serif;color:#111827;">
+<h1>OmniOps Factory IT Suite - Yönetici Bilgilendirme Raporu</h1>
+<p>{escape(context['period_label'])}</p>
+<table border="1" cellspacing="0" cellpadding="8" style="border-collapse:collapse;width:100%;">
+<thead><tr style="background:#111827;color:#fff;"><th>KPI</th><th>Değer</th><th>Açıklama</th></tr></thead>
+<tbody>{kpis}</tbody>
+</table>
+{''.join(rows)}
+<h2>Yönetim Önerileri</h2>
+<ul>{recommendations}</ul>
+</body>
+</html>"""
+
+
+@login_required
+@role_required(['Ağ Ekibi', 'Sistem Ekibi', 'Yönetim'])
+def executive_summary_view(request):
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    return render(request, 'executive_summary.html', build_executive_report_context())
+
+
+@login_required
+@role_required(['Ağ Ekibi', 'Sistem Ekibi', 'Yönetim'])
+def executive_summary_export(request, export_format):
+    if not request.user.is_staff:
+        return redirect('dashboard')
+    context = build_executive_report_context()
+    today = timezone.now().strftime('%Y%m%d')
+
+    if export_format == 'word':
+        response = HttpResponse(_build_executive_word_html(context), content_type='application/msword; charset=utf-8')
+        response['Content-Disposition'] = f'attachment; filename="OmniOps_Yonetici_Ozeti_{today}.doc"'
+        return response
+
+    response = HttpResponse(_build_executive_pdf(context), content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="OmniOps_Yonetici_Ozeti_{today}.pdf"'
+    return response
 
 
 # ========================================================
@@ -1001,74 +1418,81 @@ def reporting_hub_view(request):
 # --- EVRENSEL (GENERIC) CRUD (DÜZENLEME VE SİLME) GÖRÜNÜMLERİ ---
 # ========================================================
 
+class StaffRequiredMixin(LoginRequiredMixin, UserPassesTestMixin):
+    raise_exception = True
+
+    def test_func(self):
+        return self.request.user.is_staff or self.request.user.is_superuser
+
+
 # --- CİHAZ (DONANIM) ---
-class DeviceUpdateView(LoginRequiredMixin, UpdateView):
+class DeviceUpdateView(StaffRequiredMixin, UpdateView):
     model = Device
     form_class = DeviceForm
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('custom_admin')
 
-class DeviceDeleteView(LoginRequiredMixin, DeleteView):
+class DeviceDeleteView(StaffRequiredMixin, DeleteView):
     model = Device
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('custom_admin')
 
 # --- LİSANS ---
-class LicenseUpdateView(LoginRequiredMixin, UpdateView):
+class LicenseUpdateView(StaffRequiredMixin, UpdateView):
     model = License
     form_class = LicenseForm
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('it_inventory')
 
-class LicenseDeleteView(LoginRequiredMixin, DeleteView):
+class LicenseDeleteView(StaffRequiredMixin, DeleteView):
     model = License
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('it_inventory')
 
 # --- TEDARİKÇİ (VENDOR CONTRACT) ---
-class VendorContractUpdateView(LoginRequiredMixin, UpdateView):
+class VendorContractUpdateView(StaffRequiredMixin, UpdateView):
     model = VendorContract
     fields = '__all__'
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('it_inventory')
 
-class VendorContractDeleteView(LoginRequiredMixin, DeleteView):
+class VendorContractDeleteView(StaffRequiredMixin, DeleteView):
     model = VendorContract
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('it_inventory')
 
 # --- ZİMMET (IT ASSET) ---
-class ITAssetUpdateView(LoginRequiredMixin, UpdateView):
+class ITAssetUpdateView(StaffRequiredMixin, UpdateView):
     model = ITAsset
     form_class = ITAssetForm
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('it_inventory')
 
-class ITAssetDeleteView(LoginRequiredMixin, DeleteView):
+class ITAssetDeleteView(StaffRequiredMixin, DeleteView):
     model = ITAsset
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('it_inventory')
 
 # --- IP ADRESİ (IPAM) ---
-class IpAddressUpdateView(LoginRequiredMixin, UpdateView):
+class IpAddressUpdateView(StaffRequiredMixin, UpdateView):
     model = IpAddress
     form_class = IpAddressForm
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('visual_ipam')
 
-class IpAddressDeleteView(LoginRequiredMixin, DeleteView):
+class IpAddressDeleteView(StaffRequiredMixin, DeleteView):
     model = IpAddress
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('visual_ipam')
 
 # --- DESTEK BİLETİ (TICKET) ---
-class TicketUpdateView(LoginRequiredMixin, UpdateView):
+class TicketUpdateView(StaffRequiredMixin, UpdateView):
     model = Ticket
     form_class = TicketForm
     template_name = 'inventory/generic_form.html'
     success_url = reverse_lazy('dashboard')
 
-class TicketDeleteView(LoginRequiredMixin, DeleteView):
+class TicketDeleteView(StaffRequiredMixin, DeleteView):
     model = Ticket
     template_name = 'inventory/generic_confirm_delete.html'
     success_url = reverse_lazy('dashboard')

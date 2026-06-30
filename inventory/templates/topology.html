@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 
-{% block title %}NetArchitect - Ağ Topolojisi{% endblock %}
+{% block title %}OmniOps - Ağ Topolojisi{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0 mb-5">
@@ -14,6 +14,9 @@
             <button onclick="location.reload()" class="btn btn-light border-secondary-subtle shadow-sm fw-medium rounded-pill px-3">
                 <span class="iconify me-1 align-text-bottom text-muted" data-icon="mdi:refresh"></span> Yenile
             </button>
+            <a href="{% url 'topology_png_export' %}" class="btn btn-light border-secondary-subtle shadow-sm fw-medium rounded-pill px-3" target="_blank">
+                <span class="iconify me-1 align-text-bottom text-muted" data-icon="mdi:file-image-outline"></span> PNG Harita
+            </a>
             <button class="btn btn-primary shadow-sm fw-medium rounded-pill px-3" onclick="network.fit()">
                 <span class="iconify me-1 align-text-bottom" data-icon="mdi:focus-field"></span> Haritayı Ortala
             </button>

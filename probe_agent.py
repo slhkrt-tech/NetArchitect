@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-NetArchitect Dağıtık Probe Agent (probe_agent.py)
+OmniOps Dağıtık Probe Agent (probe_agent.py)
 
 Bu script, uzak şubeler (Ankara Veri Merkezi, İstanbul Ofis vb.) sunucularına kurulup
-burada bulunan ağ cihazlarını tarayarak merkezi NetArchitect sunucusuna bilgi gönderir.
+burada bulunan ağ cihazlarını tarayarak merkezi OmniOps sunucusuna bilgi gönderir.
 
 Özellikler:
 - Periyodik ağ taraması (ARP, SNMP, SSH probe)
@@ -37,7 +37,7 @@ Kurulum:
 Yapılandırma:
     config.ini dosyasında şu alanları belirle:
     [server]
-    url = https://netarchitect.example.com
+    url = https://omniops.example.com
     shared_secret = your_shared_secret_key
     
     [probe]
@@ -130,8 +130,8 @@ class ProbeConfig:
     def _create_default_config(self, config_file):
         """Varsayılan config.ini dosyasını oluştur"""
         self.config.add_section('server')
-        self.config.set('server', 'url', 'https://netarchitect.example.com')
-        self.config.set('server', 'shared_secret', 'netarchitect_probe_secret')
+        self.config.set('server', 'url', 'https://omniops.example.com')
+        self.config.set('server', 'shared_secret', 'omniops_probe_secret')
         self.config.set('server', 'heartbeat_interval', '900')  # 15 dakika
         self.config.set('server', 'sync_interval', '900')  # 15 dakika
         
@@ -365,13 +365,13 @@ class PerformanceCollector:
 # ==========================================
 # API KLİENTİ
 # ==========================================
-class NetArchitectAPIClient:
-    """NetArchitect sunucusuyla iletişim kuran API client"""
+class OmniOpsAPIClient:
+    """OmniOps sunucusuyla iletişim kuran API client"""
     
     def __init__(self, config: ProbeConfig):
         self.config = config
-        self.base_url = config.get('server', 'url', 'https://netarchitect.example.com')
-        self.shared_secret = config.get('server', 'shared_secret', 'netarchitect_probe_secret')
+        self.base_url = config.get('server', 'url', 'https://omniops.example.com')
+        self.shared_secret = config.get('server', 'shared_secret', 'omniops_probe_secret')
         self.probe_id = None
         self.session = requests.Session()
         self.session.verify = False  # Self-signed sertifikalar için (production'da True yapılmalı)
@@ -525,7 +525,7 @@ class RemoteProbe:
         self.scanner = NetworkScanner(self.config)
         self.config_collector = DeviceConfigCollector(self.config)
         self.performance_collector = PerformanceCollector()
-        self.api_client = NetArchitectAPIClient(self.config)
+        self.api_client = OmniOpsAPIClient(self.config)
         
         self.probe_name = self.config.get('probe', 'name', 'Remote-Probe-1')
         self.location = self.config.get('probe', 'location', 'Branch')
@@ -540,7 +540,7 @@ class RemoteProbe:
     
     def run(self):
         """Probe'u çalıştır (ana döngü)"""
-        logger.info(f"=== NetArchitect Remote Probe Başlatılıyor ===")
+        logger.info(f"=== OmniOps Remote Probe Başlatılıyor ===")
         logger.info(f"Probe Adı: {self.probe_name}")
         logger.info(f"Konum: {self.location}")
         logger.info(f"Hedef Subnet: {self.target_subnet}")
@@ -632,7 +632,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(
-        description='NetArchitect Remote Probe Agent'
+        description='OmniOps Remote Probe Agent'
     )
     parser.add_argument(
         '--config',

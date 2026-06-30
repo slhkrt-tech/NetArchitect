@@ -1,0 +1,109 @@
+{% extends 'base.html' %}
+
+{% block title %}Satış Kanban - OmniOps{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">Dinamik Kanban Panosu</h2>
+        <p class="text-muted mb-0">Sürükle-bırak satış hunisi ve optimistic gelir güncellemesi.</p>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="collapse" data-bs-target="#newOpportunity">Yeni Fırsat</button>
+</div>
+
+<div class="collapse mb-4" id="newOpportunity">
+    <div class="card glass-card">
+        <div class="card-body">
+            <form method="post" class="row g-2">
+                {% csrf_token %}
+                <div class="col-md-3"><input name="title" class="form-control" placeholder="Fırsat"></div>
+                <div class="col-md-3"><input name="customer_name" class="form-control" placeholder="Müşteri"></div>
+                <div class="col-md-2"><input name="potential_revenue" type="number" step="0.01" class="form-control" placeholder="Gelir"></div>
+                <div class="col-md-2"><input name="probability" type="number" class="form-control" value="20" placeholder="%"></div>
+                <div class="col-md-2"><button class="btn btn-success w-100">Ekle</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="kanban-board d-flex gap-3 overflow-auto pb-3">
+    {% for stage in stages %}
+    <div class="kanban-column card glass-card flex-shrink-0" style="width: 310px;" data-stage="{{ stage.value }}">
+        <div class="card-header bg-transparent d-flex justify-content-between align-items-center">
+            <strong>{{ stage.label }}</strong>
+            <span class="badge bg-primary stage-total">{{ stage.weighted_total|floatformat:0 }} ₺</span>
+        </div>
+        <div class="card-body kanban-dropzone" style="min-height: 500px;">
+            {% for item in stage.items %}
+            <div class="kanban-card border rounded-3 p-3 mb-3 bg-body-tertiary" draggable="true" data-id="{{ item.id }}" data-weighted="{{ item.weighted_revenue }}">
+                <div class="fw-bold">{{ item.title }}</div>
+                <div class="text-muted small">{{ item.customer_name }}</div>
+                <div class="d-flex justify-content-between mt-2">
+                    <span class="badge bg-success">{{ item.potential_revenue }} ₺</span>
+                    <span class="badge bg-info">%{{ item.probability }}</span>
+                </div>
+                <div class="small text-muted mt-2">Ağırlıklı: {{ item.weighted_revenue }} ₺</div>
+            </div>
+            {% empty %}
+            <div class="text-muted small empty-hint">Kart yok</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    let dragged = null;
+    const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || '{{ csrf_token }}';
+
+    document.querySelectorAll('.kanban-card').forEach(card => {
+        card.addEventListener('dragstart', () => {
+            dragged = card;
+            card.classList.add('opacity-50');
+        });
+        card.addEventListener('dragend', () => card.classList.remove('opacity-50'));
+    });
+
+    document.querySelectorAll('.kanban-dropzone').forEach(zone => {
+        zone.addEventListener('dragover', e => e.preventDefault());
+        zone.addEventListener('drop', e => {
+            e.preventDefault();
+            if (!dragged) return;
+            const previousZone = dragged.parentElement;
+            zone.querySelector('.empty-hint')?.remove();
+            zone.appendChild(dragged);
+            const stage = zone.closest('.kanban-column').dataset.stage;
+            fetch(`/api/sales-opportunities/${dragged.dataset.id}/move/`, {
+                method: 'PATCH',
+                headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+                body: JSON.stringify({stage})
+            }).then(response => {
+                if (!response.ok) {
+                    previousZone.appendChild(dragged);
+                    updateTotals();
+                    alert('Kanban güncellemesi kaydedilemedi. Yetki veya oturum durumunu kontrol edin.');
+                }
+            }).catch(() => {
+                previousZone.appendChild(dragged);
+                updateTotals();
+                alert('Kanban güncellemesi sırasında ağ hatası oluştu.');
+            });
+            updateTotals();
+        });
+    });
+
+    function updateTotals() {
+        document.querySelectorAll('.kanban-column').forEach(column => {
+            let total = 0;
+            column.querySelectorAll('.kanban-card').forEach(card => {
+                total += Number(card.dataset.weighted || 0);
+            });
+            column.querySelector('.stage-total').textContent = `${Math.round(total)} ₺`;
+        });
+    }
+});
+</script>
+{% endblock %}

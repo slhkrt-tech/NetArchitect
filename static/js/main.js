@@ -1,52 +1,80 @@
 /* ==========================================
-   NETARCHITECT MERKEZİ JAVASCRIPT DOSYASI
+   OMNIOPS MERKEZİ JAVASCRIPT DOSYASI
 ========================================== */
 
 // Sayfa yüklendiğinde çalışacak fonksiyon
 document.addEventListener('DOMContentLoaded', () => {
-    
-    // --- 1. TEMA DEĞİŞTİRİCİ (DARK/LIGHT MODE) ---
-    const themeToggleBtn = document.getElementById('theme-toggle');
-    const htmlElement = document.documentElement; // <html> etiketini yakalar
-    
-    // Kullanıcının önceki tercihini tarayıcı hafızasından (LocalStorage) al, yoksa varsayılan olarak 'dark' yap 
-    // (Çünkü projeyi genel olarak koyu temaya uyarladık)
-    const currentTheme = localStorage.getItem('theme') || 'dark';
-    htmlElement.setAttribute('data-bs-theme', currentTheme);
-    
-    if (themeToggleBtn) {
-        updateButton(currentTheme);
-
-        // Butona tıklandığında temayı değiştir
-        themeToggleBtn.addEventListener('click', (e) => {
-            e.preventDefault(); // Linkin sayfayı yenilemesini engelle
-            const isDark = htmlElement.getAttribute('data-bs-theme') === 'dark';
-            const newTheme = isDark ? 'light' : 'dark';
-            
-            htmlElement.setAttribute('data-bs-theme', newTheme); // Bootstrap temasını değiştir
-            localStorage.setItem('theme', newTheme); // Tercihi hafızaya kaydet
-            updateButton(newTheme);
-        });
-    }
-
-    // Butonun görüntüsünü güncelleyen yardımcı fonksiyon
-    function updateButton(theme) {
-        if (!themeToggleBtn) return;
-        
-        if (theme === 'dark') {
-            themeToggleBtn.innerHTML = '☀️ Açık Temaya Geç';
-            // Eğer butonda renk sınıfları (text-light vb.) varsa burada güncelleyebilirsin
-        } else {
-            themeToggleBtn.innerHTML = '🌙 Koyu Temaya Geç';
-        }
-    }
-
-    // --- 2. BOOTSTRAP TOOLTIP'LERİNİ TÜM SAYFALARDA OTOMATİK BAŞLAT ---
+    // --- BOOTSTRAP TOOLTIP'LERİNİ TÜM SAYFALARDA OTOMATİK BAŞLAT ---
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+
+    initCommandPalette();
 });
+
+function initCommandPalette() {
+    const modalEl = document.getElementById('commandPaletteModal');
+    const input = document.getElementById('global-search-input');
+    const results = document.getElementById('global-search-results');
+    if (!modalEl || !input || !results || typeof bootstrap === 'undefined') return;
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let timer = null;
+
+    function render(items) {
+        if (!items.length) {
+            results.innerHTML = '<div class="command-empty">Sonuç bulunamadı. Farklı bir kelime deneyin.</div>';
+            return;
+        }
+        results.innerHTML = items.map(item => `
+            <a class="command-result-item" href="${item.url || '#'}">
+                <span class="command-result-icon"><span class="iconify" data-icon="${item.icon || 'mdi:flash-outline'}"></span></span>
+                <span class="command-result-copy">
+                    <span class="command-result-title">${escapeHtml(item.title || '')}</span>
+                    <span class="command-result-subtitle">${escapeHtml(item.type || '')} · ${escapeHtml(item.subtitle || '')}</span>
+                </span>
+                <span class="iconify command-result-arrow" data-icon="mdi:arrow-right"></span>
+            </a>
+        `).join('');
+    }
+
+    function search(q = '') {
+        fetch(`/api/global-search/?q=${encodeURIComponent(q)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(response => response.ok ? response.json() : Promise.reject(response))
+            .then(data => render(data.results || []))
+            .catch(() => {
+                results.innerHTML = '<div class="command-empty text-danger">Arama servisi şu an yanıt vermiyor.</div>';
+            });
+    }
+
+    modalEl.addEventListener('shown.bs.modal', () => {
+        input.focus();
+        input.select();
+        search(input.value.trim());
+    });
+
+    input.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(() => search(input.value.trim()), 180);
+    });
+
+    document.addEventListener('keydown', event => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            modal.show();
+        }
+    });
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+}
 
 // ==========================================
 // ORTAK FONKSİYONLAR

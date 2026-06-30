@@ -1,4 +1,4 @@
-! NetArchitect - Huawei Router Konfigürasyonu
+! OmniOps - Huawei Router Konfigürasyonu
 system-view
 sysname {{ hostname }}
 !

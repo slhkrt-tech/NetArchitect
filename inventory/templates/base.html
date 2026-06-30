@@ -6,12 +6,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}NetArchitect{% endblock %}</title>
+    <title>{% block title %}OmniOps{% endblock %}</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
     <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
     
     <script>
         (function() {
@@ -21,221 +22,30 @@
     </script>
     
     <style>
-        /* TEMA DEĞİŞKENLERİ */
-        :root {
-            --petrol-bg: #113231; 
-            --petrol-active: #1a4f4d;
-            --petrol-hover: #16403e;
-            
-            --main-bg: #f8fafc; 
-            --topbar-bg: #ffffff;
-            --text-main: #334155;
-            --border-color: #e2e8f0;
-            --card-bg: #ffffff;
-        }
-
-        [data-bs-theme="dark"] {
-            --main-bg: #0f172a; 
-            --topbar-bg: #1e293b;
-            --text-main: #f8fafc;
-            --border-color: #334155;
-            --card-bg: #1e293b;
-        }
-        
-        body { 
-            background-color: var(--main-bg) !important; 
-            color: var(--text-main) !important; 
-            font-family: 'Inter', sans-serif;
-            overflow-x: hidden;
-            transition: background-color 0.3s ease, color 0.3s ease;
-        }
-
-        /* --- SİDEBAR KUSURSUZ TASARIM --- */
-        .sidebar { 
-            width: 260px; 
-            min-height: 100vh; 
-            background-color: var(--petrol-bg); 
-            color: #fff; 
-            transition: all 0.3s ease-in-out; 
-            z-index: 1040;
-            position: fixed;
-            left: 0;
-            top: 0;
-            bottom: 0;
-        }
-        
-        .sidebar .nav-link { 
-            color: #cbd5e1; 
-            font-weight: 500; 
-            border-radius: 8px; 
-            margin-bottom: 4px; 
-            padding: 10px 16px;
-            transition: all 0.2s ease-in-out;
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-        }
-        
-        .sidebar .nav-link .iconify {
-            font-size: 1.35rem;
-            margin-right: 12px;
-            opacity: 0.85;
-            transition: all 0.2s ease;
-        }
-        
-        .sidebar .nav-link:hover { 
-            color: #ffffff; 
-            background-color: rgba(255, 255, 255, 0.05); 
-            transform: translateX(4px);
-        }
-        
-        .sidebar .nav-link.active { 
-            color: #ffffff !important; 
-            background-color: var(--petrol-active) !important; 
-            border-left: 4px solid #0ea5e9; 
-            border-radius: 0 8px 8px 0; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
-        }
-        
-        .sidebar .nav-link.active .iconify {
-            opacity: 1;
-            color: #0ea5e9 !important; 
-        }
-
-        /* Sekme Başlıkları (Kategoriler) */
-        .sidebar-heading {
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 1px;
-            padding: 0 16px;
-            margin-top: 1.5rem;
-            margin-bottom: 0.5rem;
-        }
-
-        /* --- ANA İÇERİK VE ÜST BAR --- */
-        .main-wrapper { 
-            margin-left: 260px;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            transition: all 0.3s;
-        }
-        .topbar { 
-            background-color: var(--topbar-bg); 
-            border-bottom: 1px solid var(--border-color); 
-            height: 70px; 
-            z-index: 1030;
-            position: sticky;
-            top: 0;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
-        }
-
-        /* Mobil & Tablet Uyumluluk */
-        @media (max-width: 991.98px) {
-            .sidebar { transform: translateX(-100%); }
-            .sidebar.show { transform: translateX(0); }
-            .main-wrapper { margin-left: 0; }
-        }
-
-        /* Tema Uyumlu Kartlar */
-        .glass-card, .card { 
-            background-color: var(--card-bg) !important; 
-            border: 1px solid var(--border-color) !important; 
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important; 
-            color: var(--text-main) !important;
-            transition: background-color 0.3s ease, border-color 0.3s ease;
-        }
-        .text-body { color: var(--text-main) !important; }
-        .bg-body-tertiary { background-color: var(--card-bg) !important; }
-        
-        .dropdown-menu { background-color: var(--card-bg); border-color: var(--border-color); }
-        .dropdown-item { color: var(--text-main); }
-        .dropdown-item:hover { background-color: var(--border-color); color: var(--text-main); }
-        
-        /* =========================================
-           PRO-TABLO (Enterprise Görünümü) STİLLERİ 
-           ========================================= */
-        .pro-table-wrapper {
-            background: var(--card-bg);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-            border: 1px solid var(--border-color);
-            transition: background-color 0.3s ease, border-color 0.3s ease;
-        }
-        .pro-table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 8px; /* Satırlar arası boşluk */
-        }
-        .pro-table th {
-            background-color: transparent;
-            color: #64748b;
-            font-weight: 600;
-            font-size: 0.85rem;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 10px 15px;
-            border-bottom: 2px solid var(--border-color);
-        }
-        .pro-table tr {
-            background-color: var(--main-bg);
-            transition: all 0.2s ease-in-out;
-        }
-        .pro-table tr:hover {
-            background-color: var(--card-bg);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transform: translateY(-2px);
-            border: 1px solid var(--border-color);
-        }
-        .pro-table td {
-            padding: 16px 15px;
-            color: var(--text-main);
-            vertical-align: middle;
-            border: 1px solid transparent; 
-            border-top: 1px solid var(--border-color);
-            border-bottom: 1px solid var(--border-color);
-        }
-        .pro-table td:first-child { 
-            border-top-left-radius: 8px; 
-            border-bottom-left-radius: 8px; 
-            border-left: 1px solid var(--border-color);
-        }
-        .pro-table td:last-child { 
-            border-top-right-radius: 8px; 
-            border-bottom-right-radius: 8px; 
-            border-right: 1px solid var(--border-color);
-        }
-        
-        [data-bs-theme="dark"] .pro-table tr {
-             background-color: #0f172a;
-        }
-        [data-bs-theme="dark"] .pro-table tr:hover {
-             background-color: #1e293b;
-        }
-        
-        /* Event-Driven Pulse Animations */
         @keyframes pulse-danger {
-            0%, 100% { background-color: #dc3545; box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7); }
-            50% { background-color: #a02830; box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.32); }
+            50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
         }
-        .card-pulse-danger { animation: pulse-danger 2s infinite; color: white !important; }
-        .trend-indicator { font-size: 12px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
-        .trend-up { background-color: #d4edda; color: #155724; }
-        .trend-down { background-color: #f8d7da; color: #721c24; }
+        .card-pulse-danger, .pulse-danger { animation: pulse-danger 2s infinite; }
+        .trend-indicator { font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+        .trend-up { background-color: rgba(20, 184, 166, 0.12); color: #14b8a6; }
+        .trend-down { background-color: rgba(244, 63, 94, 0.12); color: #f43f5e; }
     </style>
 </head>
 <body> 
 
-    <aside class="sidebar p-3 d-flex flex-column shadow-lg" id="sidebar">
+    <aside class="sidebar p-3 d-flex flex-column" id="sidebar">
         <div class="d-flex justify-content-between align-items-center mb-4 mt-2 px-2">
-            <a href="/" class="d-flex align-items-center text-white text-decoration-none">
-                <span class="iconify fs-2 me-2 text-info" data-icon="mdi:rocket-launch"></span>
-                <span class="fs-4 fw-bold" style="letter-spacing: 0.5px;">NetArchitect</span>
+            <a href="/" class="sidebar-brand d-flex align-items-center text-decoration-none">
+                <span class="brand-mark me-2">
+                    <span class="iconify" data-icon="mdi:toolbox-outline"></span>
+                </span>
+                <span class="brand-copy">
+                    <span class="brand-title">OmniOps</span>
+                    <span class="brand-subtitle">Factory IT Suite</span>
+                </span>
             </a>
-            <button class="btn btn-link text-white d-lg-none p-0" id="closeSidebar">
+            <button class="btn btn-link d-lg-none p-0" id="closeSidebar">
                 <span class="iconify fs-3" data-icon="mdi:close"></span>
             </button>
         </div>
@@ -304,6 +114,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{% url 'executive_summary' %}" class="nav-link {% if request.path == '/yonetici-bilgilendirme/' %}active{% endif %}">
+                        <span class="iconify text-primary" data-icon="mdi:chart-box-outline"></span> {% trans "Yönetici Bilgilendirme" %}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="/sistem-loglari/" class="nav-link {% if request.path == '/sistem-loglari/' %}active{% endif %}">
                         <span class="iconify text-danger" data-icon="mdi:shield-check-outline"></span> {% trans "Güvenlik Olayları & Loglar" %}
                     </a>
@@ -311,12 +126,74 @@
             </ul>
             {% endif %}
 
-            {% if request.user|has_role:"Ağ Ekibi,HelpDesk,Yönetim" %}
+            {% if request.user|has_role:"Ağ Ekibi,Help Desk Ekibi,Yönetim" %}
             <p class="sidebar-heading">{% trans "Otomasyon & ITSM" %}</p>
             <ul class="nav flex-column mb-3">
                 <li class="nav-item">
                     <a href="/panel/" class="nav-link {% if request.path == '/panel/' %}active{% endif %}">
                         <span class="iconify" data-icon="mdi:ticket-confirmation-outline"></span> {% trans "Sistem & Bilet Yönetimi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'helpdesk_analytics' %}" class="nav-link {% if request.path == '/destek-analitik/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:chart-donut"></span> {% trans "Destek Analitikleri" %}
+                    </a>
+                </li>
+                {% if request.user|has_role:"Admin,Yönetim" %}
+                    <li class="nav-item">
+                        <a href="{% url 'user_management' %}" class="nav-link {% if request.path == '/kullanici-yonetimi/' %}active{% endif %}">
+                            <span class="iconify" data-icon="mdi:account-group-outline"></span> {% trans "Kullanıcı Yönetimi" %}
+                        </a>
+                    </li>
+                {% endif %}
+                <li class="nav-item">
+                    <a href="{% url 'field_routes' %}" class="nav-link {% if request.path == '/saha-rotalari/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Saha Rota Planlama" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'sales_kanban' %}" class="nav-link {% if request.path == '/satis-kanban/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:view-column-outline"></span> {% trans "Satış Kanban" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'factory_operations' %}" class="nav-link {% if request.path == '/fabrika-operasyonlari/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:factory"></span> {% trans "Fabrika IT Operasyonları" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'it_operations' %}" class="nav-link {% if request.path == '/it-operasyonlari/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:briefcase-account-outline"></span> {% trans "IT Operasyon Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'service_operations' %}" class="nav-link {% if request.path == '/servis-surecleri/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:clipboard-pulse-outline"></span> {% trans "Servis Süreç Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'command_center' %}" class="nav-link {% if request.path == '/komuta-merkezi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:view-dashboard-edit-outline"></span> {% trans "Komuta Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'governance_center' %}" class="nav-link {% if request.path == '/yonetisim-merkezi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:calendar-check-outline"></span> {% trans "Yönetişim Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'setup_center' %}" class="nav-link {% if request.path == '/kurulum-merkezi/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:progress-wrench"></span> {% trans "Kurulum & Sağlık Merkezi" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'offline_field_app' %}" class="nav-link {% if request.path == '/offline-saha/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:cloud-sync-outline"></span> {% trans "Offline Saha Paneli" %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a href="{% url 'dlp_events' %}" class="nav-link {% if request.path == '/dlp-olaylari/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:shield-key-outline"></span> {% trans "DLP Olayları" %}
                     </a>
                 </li>
                 
@@ -388,6 +265,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a href="{% url 'user_profile' %}" class="nav-link {% if request.path == '/profil/' %}active{% endif %}">
+                        <span class="iconify" data-icon="mdi:account-outline"></span> {% trans "Profilim" %}
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a href="{% url 'knowledge_base' %}" class="nav-link {% if request.path == '/bilgi-bankasi/' %}active{% endif %}">
                         <span class="iconify" data-icon="mdi:book-open-page-variant-outline"></span> {% trans "Bilgi Bankası" %}
                     </a>
@@ -398,13 +280,40 @@
     </aside>
 
     <div class="main-wrapper">
-        <header class="topbar px-4 d-flex align-items-center justify-content-between shadow-sm">
+        <header class="topbar px-4 d-flex align-items-center justify-content-between">
             <button class="btn d-lg-none border-secondary-subtle me-2" id="openSidebar" style="color: var(--text-main);">
                 <span class="iconify fs-4 align-middle" data-icon="mdi:menu"></span>
             </button>
-            <div class="d-none d-md-flex align-items-center"></div>
+            <div class="d-none d-md-flex align-items-center">
+                {% if user.is_authenticated %}
+                <button type="button" class="command-trigger" data-bs-toggle="modal" data-bs-target="#commandPaletteModal">
+                    <span class="iconify" data-icon="mdi:magnify"></span>
+                    <span>OmniOps içinde ara veya komut çalıştır</span>
+                    <kbd>Ctrl</kbd><kbd>K</kbd>
+                </button>
+                {% endif %}
+            </div>
 
             <div class="ms-auto d-flex align-items-center">
+
+                {% if user.is_authenticated %}
+                <div class="dropdown me-3">
+                    <a href="#" class="position-relative text-decoration-none text-muted" data-bs-toggle="dropdown" id="notification-bell" title="Bildirimler">
+                        <span class="iconify fs-4" data-icon="mdi:bell-outline"></span>
+                        {% if unread_notification_count %}
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notification-badge">{{ unread_notification_count }}</span>
+                        {% endif %}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 rounded-3 p-2" style="width: 320px; max-height: 400px; overflow-y: auto;" id="notification-list">
+                        <li class="dropdown-header d-flex justify-content-between align-items-center">
+                            <span class="fw-bold">Bildirimler</span>
+                            <button type="button" class="btn btn-link btn-sm p-0" id="mark-all-read">Tümünü okundu işaretle</button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li class="px-3 py-2 text-muted small" id="notification-empty">Yükleniyor...</li>
+                    </ul>
+                </div>
+                {% endif %}
                 
                 <button class="btn btn-link text-muted me-3" data-bs-toggle="modal" data-bs-target="#helpModal" title="Bu sayfa nasıl çalışır?">
                     <span class="iconify fs-4" data-icon="mdi:help-circle-outline"></span>
@@ -442,13 +351,18 @@
                     </a>
                     <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-3 rounded-3 p-2">
                         <li>
+                            <a class="dropdown-item fw-medium py-2 rounded" href="{% url 'user_profile' %}">
+                                <span class="iconify me-2 align-text-bottom fs-5" data-icon="mdi:account-circle-outline"></span> {% trans "Profilim" %}
+                            </a>
+                        </li>
+                        <li>
                             <a class="dropdown-item fw-medium py-2 rounded" href="#" id="theme-toggle">
                                 <span class="iconify me-2 text-warning align-text-bottom fs-5" id="theme-icon" data-icon="mdi:weather-night"></span> <span id="theme-text">{% trans "Gece Modu" %}</span>
                             </a>
                         </li>
                         {% if user.is_staff %}
                         <li>
-                            <a class="dropdown-item fw-medium py-2 rounded text-primary" href="/api/" target="_blank">
+                            <a class="dropdown-item fw-medium py-2 rounded text-primary" href="{% url 'swagger-ui' %}" target="_blank">
                                 <span class="iconify me-2 align-text-bottom fs-5" data-icon="mdi:api"></span> {% trans "API Dokümanı" %}
                             </a>
                         </li>
@@ -473,7 +387,19 @@
             </div>
         </header>
 
-        <main class="p-4 flex-grow-1">
+        <main class="p-4 flex-grow-1 app-content">
+            {% if user.is_authenticated %}
+            <section class="suite-page-shell mb-4">
+                <div>
+                    <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+                    <h1 class="suite-page-title">{% block page_heading %}{% trans "Fabrika BT Operasyon Merkezi" %}{% endblock %}</h1>
+                </div>
+                <a href="{% url 'executive_summary' %}" class="btn btn-light suite-report-shortcut">
+                    <span class="iconify me-1" data-icon="mdi:file-chart-check-outline"></span>
+                    {% trans "Yönetici Özeti" %}
+                </a>
+            </section>
+            {% endif %}
             {% block content %}
             {% endblock %}
         </main>
@@ -508,6 +434,25 @@
         </div>
       </div>
     </div>
+
+    {% if user.is_authenticated %}
+    <div class="modal fade" id="commandPaletteModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content command-palette">
+          <div class="modal-body p-0">
+            <div class="command-search-wrap">
+                <span class="iconify" data-icon="mdi:magnify"></span>
+                <input type="search" id="global-search-input" class="command-search-input" placeholder="Cihaz, ticket, kamera, Odoo, runbook, rapor ara...">
+                <span class="command-shortcut">ESC</span>
+            </div>
+            <div id="global-search-results" class="command-results">
+                <div class="command-empty">Komutlar ve hızlı aksiyonlar yükleniyor...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{% static 'js/main.js' %}"></script>
@@ -553,6 +498,50 @@
                     themeIcon.classList.replace('text-light', 'text-warning');
                     themeText.textContent = "{% trans 'Gece Modu' %}";
                 }
+            }
+
+            // Bildirimler
+            const notificationList = document.getElementById('notification-list');
+            const notificationEmpty = document.getElementById('notification-empty');
+            const markAllReadBtn = document.getElementById('mark-all-read');
+
+            function loadNotifications() {
+                if (!notificationList) return;
+                fetch('{% url "notifications_api" %}')
+                    .then(r => r.json())
+                    .then(data => {
+                        const badge = document.getElementById('notification-badge');
+                        if (badge) {
+                            badge.textContent = data.unread_count;
+                            badge.style.display = data.unread_count ? 'inline' : 'none';
+                        }
+                        if (!data.notifications.length) {
+                            if (notificationEmpty) notificationEmpty.textContent = 'Bildirim yok.';
+                            return;
+                        }
+                        if (notificationEmpty) notificationEmpty.remove();
+                        data.notifications.forEach(n => {
+                            const li = document.createElement('li');
+                            li.innerHTML = `<a href="${n.link || '#'}" class="dropdown-item py-2 rounded ${n.is_read ? '' : 'bg-primary bg-opacity-10'}">
+                                <div class="fw-bold small">${n.title}</div>
+                                <div class="text-muted small">${n.message}</div>
+                                <div class="text-muted" style="font-size:0.7rem">${n.created_at}</div>
+                            </a>`;
+                            notificationList.appendChild(li);
+                        });
+                    });
+            }
+            loadNotifications();
+            setInterval(loadNotifications, 60000);
+
+            if (markAllReadBtn) {
+                markAllReadBtn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    fetch('{% url "mark_all_notifications_read" %}', {
+                        method: 'POST',
+                        headers: {'X-CSRFToken': '{{ csrf_token }}'}
+                    }).then(() => location.reload());
+                });
             }
         });
     </script>

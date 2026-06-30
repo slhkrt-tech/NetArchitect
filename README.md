@@ -1,11 +1,11 @@
-# 🌐 NetArchitect: AIOps & Network Management System
+# 🌐 OmniOps: AIOps & Network Management System
 
 ![Python](https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python)
 ![Django](https://img.shields.io/badge/Django-Web_Framework-092E20?style=for-the-badge&logo=django)
 ![Celery](https://img.shields.io/badge/Celery-Asynchronous_Task_Queue-37814A?style=for-the-badge&logo=celery)
 ![Redis](https://img.shields.io/badge/Redis-Message_Broker-DC382D?style=for-the-badge&logo=redis)
 
-**NetArchitect**, kurumsal ağ altyapılarını yönetmek, otomatize etmek ve otonom güvenlik kararları (AIOps) almak için geliştirilmiş kapsamlı bir Ağ Yönetim (NMS) ve IT Hizmet Yönetimi (ITSM) platformudur.
+**OmniOps**, kurumsal ağ altyapılarını yönetmek, otomatize etmek ve otonom güvenlik kararları (AIOps) almak için geliştirilmiş kapsamlı bir Ağ Yönetim (NMS) ve IT Hizmet Yönetimi (ITSM) platformudur.
 
 Sistem, darboğazları önlemek için asenkron mesaj kuyruğu (Producer-Consumer) mimarisi üzerine inşa edilmiş olup, fiziksel veri merkezi haritalamasından, derin ağ keşfine kadar birçok gelişmiş mühendislik algoritması barındırmaktadır.
 
@@ -35,8 +35,8 @@ Projeyi kendi bilgisayarınızda test etmek için aşağıdaki adımları sıras
 
 ### 2. Projeyi Klonlayın
 ```bash
-git clone [https://github.com/slhkrt-tech/NetArchitect.git](https://github.com/slhkrt-tech/NetArchitect.git)
-cd NetArchitect
+git clone [https://github.com/slhkrt-tech/OmniOps.git](https://github.com/slhkrt-tech/OmniOps.git)
+cd OmniOps
 
 Sanal Ortam (Virtual Environment) ve Bağımlılıklar
 
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 
 Proje ana dizininde .env adında bir dosya oluşturun ve Webhook güvenlik şifresini belirleyin:
 
-WAZUH_API_KEY=netarchitect_gizli_sifre_2026
+WAZUH_API_KEY=omniops_gizli_sifre_2026
 
 Veritabanı Kurulumu
 
@@ -77,4 +77,45 @@ Ana terminalinize dönün ve Django projesini ayağa kaldırın:
 python manage.py runserver
 
 Sisteme http://127.0.0.1:8000 adresinden giriş yapabilirsiniz.
+
+---
+
+## Müşteri / Production Kurulum Kontrol Listesi
+
+1. `.env.example` dosyasını `.env` olarak kopyalayın ve aşağıdaki değerleri mutlaka değiştirin:
+   - `DJANGO_SECRET_KEY`
+   - `ALLOWED_HOSTS`
+   - `CSRF_TRUSTED_ORIGINS`
+   - `POSTGRES_PASSWORD`
+   - `WAZUH_API_KEY`
+   - `REMOTE_PROBE_SHARED_SECRET`
+
+2. İlk kurulum:
+```bash
+docker compose up --build -d
+```
+
+3. Sağlık kontrolü:
+```bash
+curl http://127.0.0.1:8000/health/
+```
+
+4. TLS/Reverse proxy kullanıyorsanız:
+   - Proxy HTTPS terminasyonu yapıyorsa `SECURE_SSL_REDIRECT=False` bırakılabilir.
+   - Uygulama doğrudan HTTPS sunuyorsa `SECURE_SSL_REDIRECT=True` kullanılmalıdır.
+   - Canlı domain `ALLOWED_HOSTS` ve `CSRF_TRUSTED_ORIGINS` içinde yer almalıdır.
+
+5. Production doğrulama:
+```bash
+python manage.py check
+python manage.py test inventory
+```
+
+6. Kalıcı veriler:
+   - PostgreSQL: `postgres_data`
+   - Redis: `redis_data`
+   - Kullanıcı dosyaları: `media_data`
+   - Uygulama logları: `logs_data`
+
+Not: Derin ağ taraması için container `NET_RAW` ve `NET_ADMIN` capability ile çalışır. Bu, tam `privileged` moddan daha dar bir yetki setidir.
 

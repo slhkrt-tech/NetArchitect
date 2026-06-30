@@ -1,11 +1,18 @@
 from django.contrib import admin
 
-# Projedeki TÜM modelleri içeri aktarıyoruz
 from .models import (
     Device, IpAddress, Ticket, SystemLog, DeviceBackup,
-    ServiceCatalogItem, ITAsset, License, Port, 
-    KnowledgeBaseArticle, VendorContract, ChangeRequest, 
-    DevicePerformanceLog, TicketComment
+    ServiceCatalogItem, ITAsset, License, Port,
+    KnowledgeBaseArticle, VendorContract, ChangeRequest,
+    DevicePerformanceLog, TicketComment, TicketAttachment,
+    TicketCategory, UserProfile, Notification, NetworkScan, NetworkScanHost,
+    FieldVisit, SalesOpportunity, DLPEvent, FactoryArea, ConsumableItem,
+    MaintenanceTask, EmployeeITProcess, ProcurementRequest, OnCallShift,
+    BackupJobMonitor, VendorSupportCase, AssetHandover, MajorIncident,
+    AccessRequest, PrinterFleetItem, Runbook, RemoteAccessGrant,
+    DepartmentChannel, DepartmentMessage, CameraDevice, BusinessApplication,
+    ReportTemplate, ChangeCalendarEvent, ServiceDependency,
+    IntegrationHealthCheck, ComplianceControl, DocumentOutputJob,
 )
 
 # Temel ve basit modellerin doğrudan kaydı
@@ -20,6 +27,39 @@ admin.site.register(VendorContract)
 admin.site.register(ChangeRequest)
 admin.site.register(DevicePerformanceLog)
 admin.site.register(TicketComment)
+admin.site.register(TicketAttachment)
+admin.site.register(TicketCategory)
+admin.site.register(UserProfile)
+admin.site.register(Notification)
+admin.site.register(NetworkScan)
+admin.site.register(NetworkScanHost)
+admin.site.register(FieldVisit)
+admin.site.register(SalesOpportunity)
+admin.site.register(DLPEvent)
+admin.site.register(FactoryArea)
+admin.site.register(ConsumableItem)
+admin.site.register(MaintenanceTask)
+admin.site.register(EmployeeITProcess)
+admin.site.register(ProcurementRequest)
+admin.site.register(OnCallShift)
+admin.site.register(BackupJobMonitor)
+admin.site.register(VendorSupportCase)
+admin.site.register(AssetHandover)
+admin.site.register(MajorIncident)
+admin.site.register(AccessRequest)
+admin.site.register(PrinterFleetItem)
+admin.site.register(Runbook)
+admin.site.register(RemoteAccessGrant)
+admin.site.register(DepartmentChannel)
+admin.site.register(DepartmentMessage)
+admin.site.register(CameraDevice)
+admin.site.register(BusinessApplication)
+admin.site.register(ReportTemplate)
+admin.site.register(ChangeCalendarEvent)
+admin.site.register(ServiceDependency)
+admin.site.register(IntegrationHealthCheck)
+admin.site.register(ComplianceControl)
+admin.site.register(DocumentOutputJob)
 
 # ========================================================
 # --- ITSM HİZMET KATALOĞU YÖNETİMİ ---

@@ -65,7 +65,7 @@ def otomatik_ag_taramasi(network="192.168.1.0/24"):
                     serial_number=discovery_data["serial_number"],
                     defaults={
                         'name': f"{hostname} ({discovery_data['model']})",
-                        'asset_type': 'server' if discovery_data["device_type"] == 'Server' else 'desktop',
+                        'asset_type': 'desktop',
                         'model': discovery_data["model"],
                         'status': 'active'
                     }
@@ -86,7 +86,13 @@ def otomatik_sla_ve_lisans_kontrolu():
     yaklasan_sozlesmeler = VendorContract.objects.filter(end_date__lte=deadline)
     
     if yaklasan_lisanslar.exists() or yaklasan_sozlesmeler.exists():
-        SystemLog.objects.create(action='SYSTEM', details="Celery Otomasyonu: Sabah SLA ve Lisans uyarı mailleri gönderildi.")
+        SystemLog.objects.create(
+            action='SYSTEM',
+            details=(
+                "Celery Otomasyonu: Yaklaşan lisans/sözleşme uyarısı üretildi. "
+                f"Lisans: {yaklasan_lisanslar.count()}, Sözleşme: {yaklasan_sozlesmeler.count()}."
+            ),
+        )
     return "Kontrol bitti."
 
 @shared_task
@@ -96,17 +102,27 @@ def check_sla_and_escalate():
     if not breached_tickets.exists():
         return "SLA ihlali yapan yeni bilet bulunamadı."
 
+    from .helpdesk import notify_user, notify_ticket_event
     it_manager = User.objects.filter(is_superuser=True, is_active=True).first()
     escalated_count = 0
     for ticket in breached_tickets:
         ticket.is_escalated = True
-        ticket.priority = 'Kritik' 
+        ticket.priority = 'Kritik'
         if it_manager:
-            ticket.assigned_to = it_manager 
+            ticket.assigned_to = it_manager
+            notify_user(
+                it_manager,
+                f'SLA ihlali: #{ticket.id}',
+                ticket.title,
+                link=f'/talep/{ticket.id}/',
+                notification_type='sla_breach',
+                ticket=ticket,
+            )
             SystemLog.objects.create(action='TICKET', details=f"SLA İHLALİ: #{ticket.id} numaralı bilet {it_manager.username} adlı yöneticiye otomatik eskale edildi.")
+        notify_ticket_event(ticket, 'sla_breach')
         ticket.save()
         escalated_count += 1
-    return f"{escalated_count} adet bilet başarıyla BT Müdürüne eskale edildi."
+    return f"{escalated_count} adet bilet başarıyla eskale edildi."
 
 @shared_task
 def zabbix_threshold_monitor():
@@ -336,7 +352,7 @@ def cleanup_old_s3_backups(days_old=7):
                 continue
                 
             for obj in page['Contents']:
-                # Dosya adından timestamp'i çıkart (örn: netarchitect_backup_20230115_103045.dump)
+                # Dosya adından timestamp'i çıkart (örn: omniops_backup_20230115_103045.dump)
                 # LastModified ile eski olup olmadığını kontrol et
                 if obj['LastModified'].replace(tzinfo=None) < cutoff_date.replace(tzinfo=None):
                     s3.delete_object(Bucket=settings.AWS_S3_BACKUP_BUCKET, Key=obj['Key'])
@@ -355,19 +371,19 @@ def cleanup_old_s3_backups(days_old=7):
 
 @shared_task
 def distributed_probe_polling():
-    """Uzak branch probe/agent'larla dağıtık izleme anaflow'u tetikler."""
+    """Heartbeat göndermeyen probe/agent kayıtlarını offline olarak işaretler."""
     from .models import RemoteProbe
 
-    probes = RemoteProbe.objects.all()
+    timeout = timezone.now() - timedelta(minutes=30)
+    probes = RemoteProbe.objects.filter(last_heartbeat__lt=timeout).exclude(status='offline')
     updated = 0
     for probe in probes:
-        probe.last_heartbeat = timezone.now()
-        probe.status = 'online'
-        probe.save(update_fields=['last_heartbeat', 'status'])
+        probe.status = 'offline'
+        probe.save(update_fields=['status'])
         updated += 1
 
-    SystemLog.objects.create(action='SYSTEM', details=f'Dağıtık probe polling tamamlandı. {updated} probe güncellendi.')
-    return f'Dağıtık probe polling tamamlandı. {updated} probe güncellendi.'
+    SystemLog.objects.create(action='SYSTEM', details=f'Dağıtık probe kontrolü tamamlandı. {updated} probe offline işaretlendi.')
+    return f'Dağıtık probe kontrolü tamamlandı. {updated} probe offline işaretlendi.'
 
 @shared_task
 def periodic_security_poll():
@@ -457,18 +473,6 @@ def data_retention_policy_task():
 def archive_old_performance_logs():
     """Wrapper for legacy Celery schedule name. Calls the main data retention task."""
     return data_retention_policy_task()
-
-
-@shared_task
-def otomatik_ldap_senkronizasyonu():
-    """Placeholder task for LDAP synchronization referenced by some schedules.
-    Implement actual LDAP sync logic or replace schedule to call a concrete function.
-    """
-    try:
-        SystemLog.objects.create(action='SYSTEM', details='Celery: otomatik_ldap_senkronizasyonu - placeholder çalıştı (gerçek senkronizasyon yok).')
-    except Exception:
-        pass
-    return "LDAP senkronizasyonu placeholder çalıştı."
 
 
 # ========================================================
@@ -658,7 +662,7 @@ def generate_and_send_audit_report():
     
     archive_dir = Path(settings.BASE_DIR) / 'archives'
     archive_dir.mkdir(parents=True, exist_ok=True)
-    pdf_filename = f"NetArchitect_Haftalik_Denetim_Raporu_{end_date.strftime('%Y%m%d')}.pdf"
+    pdf_filename = f"OmniOps_Haftalik_Denetim_Raporu_{end_date.strftime('%Y%m%d')}.pdf"
     pdf_path = archive_dir / pdf_filename
 
     try:
@@ -699,14 +703,14 @@ def generate_and_send_audit_report():
 
         doc.build(elements)
 
-        admin_emails = [admin[1] for admin in getattr(settings, 'ADMINS', [('Admin', 'admin@netarchitect.local')])]
+        admin_emails = [admin[1] for admin in getattr(settings, 'ADMINS', [('Admin', 'admin@omniops.local')])]
         if not admin_emails:
             admin_emails = ['admin@firma.com'] 
 
         email = EmailMessage(
-            subject=f"[NetArchitect] Haftalık Denetim Raporu - {end_date.strftime('%d.%m.%Y')}",
-            body="Merhaba,\n\nSon 7 güne ait sistem hareketlerini, cihaz değişiklik taleplerini ve güvenlik ihlallerini içeren haftalık denetim raporu (Audit Report) ektedir.\n\nİyi çalışmalar,\nNetArchitect AIOps Sistemi",
-            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@netarchitect.local'),
+            subject=f"[OmniOps] Haftalık Denetim Raporu - {end_date.strftime('%d.%m.%Y')}",
+            body="Merhaba,\n\nSon 7 güne ait sistem hareketlerini, cihaz değişiklik taleplerini ve güvenlik ihlallerini içeren haftalık denetim raporu (Audit Report) ektedir.\n\nİyi çalışmalar,\nOmniOps AIOps Sistemi",
+            from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@omniops.local'),
             to=admin_emails,
         )
         email.attach_file(str(pdf_path))

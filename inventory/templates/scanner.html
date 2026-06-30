@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 
-{% block title %}NetArchitect - Canlı Ağ Tarayıcı{% endblock %}
+{% block title %}OmniOps - Canlı Ağ Tarayıcı{% endblock %}
 
 {% block content %}
 <div class="container-fluid px-0 mb-5">
     
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 gap-3">
         <div>
-            <h4 class="fw-bold mb-1">Layer 2 Ağ Tarayıcı</h4>
-            <p class="text-muted small mb-0">Ağınızdaki aktif cihazları donanım seviyesinde tespit ederek güvenlik duvarlarını aşın.</p>
+            <h4 class="fw-bold mb-1">Gelişmiş Ağ Tarayıcı</h4>
+            <p class="text-muted small mb-0">Ping, ARP ve raw-socket/TCP probelarını birleştirerek cihaz, MAC ve üretici bilgilerini yakalayın.</p>
         </div>
     </div>
 
@@ -25,7 +25,7 @@
                     </div>
                 </div>
                 <div class="card-body px-4 pb-4">
-                    <p class="text-muted small mb-4">ICMP paketlerini engelleyen telefon, tablet veya gizli bilgisayarları bile Layer-2 protokolü ile tespit edebilirsiniz.</p>
+                    <p class="text-muted small mb-4">Hybrid mod önce ARP broadcast, sonra ICMP ping ve servis port probe dener. MAC varsa vendor otomatik tespit edilir.</p>
                     
                     <form method="POST" id="scanForm" onsubmit="showGlobalLoading('scanBtn', 'Ağ Dinleniyor...')">
                         {% csrf_token %}
@@ -37,6 +37,15 @@
                             <div class="form-text text-muted small mt-2 d-flex align-items-center">
                                 <span class="iconify me-1 text-info" data-icon="mdi:information-outline"></span> Maksimum /24 alt ağı (254 host) desteklenir.
                             </div>
+                        </div>
+                        <div class="mb-4">
+                            <label class="form-label fw-bold text-muted small mb-2">Tarama Yöntemi</label>
+                            <select name="method" class="form-select">
+                                <option value="hybrid" {% if selected_method == 'hybrid' %}selected{% endif %}>Hybrid (ARP + Ping + Raw Socket/TCP)</option>
+                                <option value="arp" {% if selected_method == 'arp' %}selected{% endif %}>Sadece ARP</option>
+                                <option value="ping" {% if selected_method == 'ping' %}selected{% endif %}>Sadece Ping</option>
+                                <option value="raw_socket" {% if selected_method == 'raw_socket' %}selected{% endif %}>Raw Socket/TCP Probe</option>
+                            </select>
                         </div>
                         <button type="submit" class="btn btn-primary w-100 fw-bold shadow-sm py-2 rounded-3" id="scanBtn">
                             <span class="iconify me-2 fs-5 align-text-bottom" data-icon="mdi:magnify-scan"></span>Taramayı Başlat
@@ -104,6 +113,20 @@
                                                         <span class="font-monospace">{{ device.mac }}</span>
                                                     </div>
                                                     <div class="d-flex align-items-center">
+                                                        <span class="iconify me-2 opacity-50" data-icon="mdi:factory"></span> 
+                                                        <span>{{ device.vendor|default:"Bilinmiyor" }}</span>
+                                                    </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="iconify me-2 opacity-50" data-icon="mdi:radar"></span> 
+                                                        <span>{{ device.detected_by }}</span>
+                                                    </div>
+                                                    {% if device.latency_ms %}
+                                                    <div class="d-flex align-items-center">
+                                                        <span class="iconify me-2 opacity-50" data-icon="mdi:speedometer"></span> 
+                                                        <span>{{ device.latency_ms }} ms</span>
+                                                    </div>
+                                                    {% endif %}
+                                                    <div class="d-flex align-items-center">
                                                         <span class="iconify me-2 opacity-50" data-icon="mdi:dns"></span> 
                                                         <span class="text-truncate" style="max-width: 200px;" title="{{ device.hostname }}">{{ device.hostname }}</span>
                                                     </div>
@@ -128,7 +151,7 @@
                         <div class="text-center mb-4">
                             <span class="iconify text-info opacity-25 mb-3" data-icon="mdi:radar" style="font-size: 5rem;"></span>
                             <h5 class="fw-bold mb-2 text-body">Mekanizma Nasıl Çalışır?</h5>
-                            <p class="text-muted small mx-auto" style="max-width: 400px;">Ağ cihazlarını güvenilir bir şekilde keşfetmek için arka planda Python (Scapy) motoru kullanılır.</p>
+                            <p class="text-muted small mx-auto" style="max-width: 400px;">Ağ cihazlarını keşfetmek için Scapy ARP, OS ping ve TCP socket probe motorları birlikte kullanılır.</p>
                         </div>
                         
                         <div class="d-flex flex-column gap-4 mx-auto" style="max-width: 450px;">
@@ -150,12 +173,45 @@
                                     <p class="text-muted small mb-0">Sadece IP adresini bulmakla kalmaz; cihazın fiziksel donanım kimliğini ve yerel ağdaki ismini de çözümler.</p>
                                 </div>
                             </div>
+                            <div class="d-flex align-items-start">
+                                <div class="bg-warning bg-opacity-10 text-warning rounded p-2 me-3">
+                                    <span class="iconify fs-4" data-icon="mdi:factory"></span>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1 text-body">Otomatik Vendor Tespiti</h6>
+                                    <p class="text-muted small mb-0">MAC adresi OUI verisi ile eşleştirilerek Apple, Samsung, Cisco gibi üretici bilgisi gösterilir.</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
             {% endif %}
         </div>
     </div>
+
+    {% if recent_scans %}
+    <div class="card glass-card mt-4">
+        <div class="card-body">
+            <h6 class="fw-bold mb-3">Son Taramalar</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Ağ</th><th>Yöntem</th><th>Aktif</th><th>Süre</th><th>Tarih</th></tr></thead>
+                    <tbody>
+                    {% for scan in recent_scans %}
+                    <tr>
+                        <td class="font-monospace">{{ scan.network }}</td>
+                        <td>{{ scan.method }}</td>
+                        <td>{{ scan.active_hosts }}/{{ scan.total_hosts }}</td>
+                        <td>{{ scan.duration_ms }} ms</td>
+                        <td>{{ scan.created_at|date:"d.m.Y H:i" }}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
 <style>

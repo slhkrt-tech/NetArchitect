@@ -1,4 +1,4 @@
-! NetArchitect - Huawei Switch Konfigürasyonu
+! OmniOps - Huawei Switch Konfigürasyonu
 system-view
 sysname {{ hostname }}
 !

@@ -1,23 +1,213 @@
-from django.test import TestCase
+import re
+import io
+from pathlib import Path
+
+from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.contrib.staticfiles.finders import find
+from django.test import TestCase, override_settings
+from django.urls import NoReverseMatch, reverse
+from django.conf import settings
+
+from .models import SalesOpportunity
 
 
+@override_settings(SECURE_SSL_REDIRECT=False)
 class InventorySmokeTests(TestCase):
-    def test_smoke(self):
-        """Basit duman testi: test framework'ün çalıştığını doğrular."""
-        self.assertTrue(True)
+    def setUp(self):
+        self.admin = User.objects.create_superuser(
+            username='admin',
+            email='admin@example.com',
+            password='StrongPass123!',
+        )
+        self.client.force_login(self.admin)
 
+    def test_public_runtime_endpoints(self):
+        """Production healthcheck ve PWA service worker endpoint'leri çalışmalı."""
+        self.assertEqual(self.client.get(reverse('health_check')).status_code, 200)
+        response = self.client.get(reverse('service_worker_js'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('application/javascript', response['Content-Type'])
 
-if __name__ == '__main__':
-    # Örnek webhook çağrusu sadece doğrudan script olarak çalıştırıldığında gönderilir.
-    import requests
+    def test_core_pages_render_for_admin(self):
+        """Ana menüdeki sayfalar boş veritabanında bile 200 dönmeli."""
+        route_names = [
+            'dashboard',
+            'it_inventory',
+            'generator',
+            'subnet_calc',
+            'network_scanner',
+            'visual_ipam',
+            'live_monitor',
+            'system_logs',
+            'knowledge_base',
+            'custom_admin',
+            'rack_elevation',
+            'network_topology',
+            'device_backup',
+            'bulk_config_generator',
+            'reporting_hub',
+            'executive_summary',
+            'helpdesk_analytics',
+            'user_management',
+            'user_profile',
+            'field_routes',
+            'sales_kanban',
+            'factory_operations',
+            'it_operations',
+            'service_operations',
+            'command_center',
+            'governance_center',
+            'setup_center',
+            'offline_field_app',
+            'dlp_events',
+            'port_mapping_list',
+        ]
+        for route_name in route_names:
+            with self.subTest(route=route_name):
+                response = self.client.get(reverse(route_name))
+                self.assertEqual(response.status_code, 200)
 
-    payload = {
-        "ip": "192.168.1.10",
-        "message": "%LINK-3-UPDOWN: Interface GigabitEthernet0/1, changed state to down."
-    }
+    def test_ajax_endpoints_render_for_admin(self):
+        response = self.client.get(reverse('dashboard_refresh'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get('status'), 'ok')
 
-    try:
-        response = requests.post("http://127.0.0.1:8000/api/webhook/alert/", json=payload, timeout=5)
-        print(response.json())
-    except Exception as e:
-        print(f"Webhook örneği çalıştırılamadı: {e}")
+        response = self.client.get(reverse('rack_devices_api'))
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(reverse('notifications_api'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('notifications', response.json())
+
+        response = self.client.get(reverse('global_search_api'), {'q': 'dashboard'})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('results', response.json())
+
+        response = self.client.get(reverse('readiness_api'))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('checks', response.json())
+
+        response = self.client.get(reverse('executive_summary_export', args=['word']))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('application/msword', response['Content-Type'])
+
+        response = self.client.get(reverse('executive_summary_export', args=['pdf']))
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('application/pdf', response['Content-Type'])
+
+    def test_omniops_doctor_command_runs(self):
+        output = io.StringIO()
+        call_command('omniops_doctor', '--json', stdout=output)
+        self.assertIn('score', output.getvalue())
+
+    def test_core_api_lists_render_for_admin(self):
+        route_names = [
+            'device-list',
+            'ipaddress-list',
+            'network-scan-list',
+            'ticket-list',
+            'ticket-category-list',
+            'notification-list',
+            'change-request-list',
+            'performance-log-list',
+            'user-list',
+            'probe-list',
+            'field-visit-list',
+            'sales-opportunity-list',
+            'dlp-event-list',
+            'factory-area-list',
+            'consumable-list',
+            'maintenance-task-list',
+            'employee-it-process-list',
+            'procurement-request-list',
+            'oncall-shift-list',
+            'backup-job-list',
+            'vendor-support-case-list',
+            'asset-handover-list',
+            'major-incident-list',
+            'access-request-list',
+            'printer-fleet-list',
+            'runbook-list',
+            'remote-access-grant-list',
+            'department-channel-list',
+            'department-message-list',
+            'camera-device-list',
+            'business-application-list',
+            'report-template-list',
+            'change-calendar-event-list',
+            'service-dependency-list',
+            'integration-health-check-list',
+            'compliance-control-list',
+            'document-output-job-list',
+        ]
+        for route_name in route_names:
+            with self.subTest(route=route_name):
+                response = self.client.get(reverse(route_name))
+                self.assertEqual(response.status_code, 200)
+
+    def test_sales_move_rejects_invalid_position(self):
+        opportunity = SalesOpportunity.objects.create(
+            title='Test Fırsatı',
+            customer_name='Test Müşteri',
+            owner=self.admin,
+        )
+        response = self.client.patch(
+            reverse('sales-opportunity-move', args=[opportunity.id]),
+            data={'stage': 'proposal', 'position': 'not-a-number'},
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_login_page_does_not_show_unconfigured_sso(self):
+        self.client.logout()
+        response = self.client.get(reverse('login'))
+        self.assertEqual(response.status_code, 200)
+        content = response.content.decode('utf-8')
+        if not settings.SOCIAL_AUTH_AZUREAD_OAUTH2_KEY:
+            self.assertNotIn('Microsoft ile Giriş Yap', content)
+        if not settings.SOCIAL_AUTH_OIDC_KEY:
+            self.assertNotIn('Kurumsal SSO ile Giriş Yap', content)
+
+    def test_template_url_and_static_references_are_valid(self):
+        root = Path(settings.BASE_DIR)
+        url_re = re.compile(r"\{%\s*url\s+['\"]([^'\"]+)['\"](?:\s+([^%]+?))?\s*%\}")
+        static_re = re.compile(r"\{%\s*static\s+['\"]([^'\"]+)['\"]\s*%\}")
+        dummy_args = {
+            'ticket.id': 1,
+            'b.device.id': 1,
+            'd.id': 1,
+            'asset.id': 1,
+            'lic.id': 1,
+            'contract.id': 1,
+            'device.id': 1,
+            'pk': 1,
+        }
+
+        for path in root.glob('inventory/templates/**/*.html'):
+            text = path.read_text(encoding='utf-8', errors='ignore')
+            for match in url_re.finditer(text):
+                name = match.group(1)
+                args_text = (match.group(2) or '').strip()
+                args = []
+                if name == 'social:begin':
+                    args = ['azuread-oauth2']
+                elif args_text:
+                    for token in re.split(r'\s+', args_text):
+                        token = token.strip()
+                        if not token or token.startswith('as ') or '=' in token:
+                            continue
+                        if token.startswith(('"', "'")):
+                            args.append(token.strip('"\''))
+                        elif token in dummy_args:
+                            args.append(dummy_args[token])
+                        elif token.endswith('.id') or token == 'id':
+                            args.append(1)
+                try:
+                    reverse(name, args=args)
+                except NoReverseMatch as exc:
+                    self.fail(f'{path.relative_to(root)} içindeki url çözümlenemedi: {name} {args} ({exc})')
+
+            for match in static_re.finditer(text):
+                asset = match.group(1)
+                self.assertIsNotNone(find(asset), f'{path.relative_to(root)} statik dosyası bulunamadı: {asset}')

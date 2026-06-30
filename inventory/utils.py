@@ -9,6 +9,9 @@ import ipaddress
 # MAC (Layer 2) seviyesinde ağ taraması için gerekli kütüphaneler
 import scapy.all as scapy
 import socket
+import subprocess
+import platform
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # İşletim sistemi seviyesi ping işlemleri ve metin ayrıştırma için
 import re
@@ -22,7 +25,7 @@ from cryptography.fernet import Fernet
 # DİKKAT: Gerçek sistemlerde bu anahtar .env dosyasında saklanır!
 vault_key = getattr(settings, 'VAULT_KEY', None) or os.environ.get('VAULT_KEY')
 if not vault_key:
-    vault_key = 'q2aL_h5d1WqL1eX_X7pX_P4Q8aZ9sV2xO3cT6nY0jM8='
+    vault_key = 'MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA='
 VAULT_KEY = vault_key.encode('utf-8') if isinstance(vault_key, str) else vault_key
 cipher_suite = Fernet(VAULT_KEY)
 
@@ -58,7 +61,8 @@ def get_netmiko_device_type(vendor):
 try:
     from netmiko import ConnectHandler, SSHDetect
 except ImportError:
-    pass 
+    ConnectHandler = None
+    SSHDetect = None
 
 
 # ========================================================
@@ -67,6 +71,8 @@ except ImportError:
 
 def detect_device_vendor(ip_address, username, password):
     """Cihaza SSH isteği yollayıp dönen parmak izinden (Fingerprint) üreticiyi tespit eder."""
+    if SSHDetect is None:
+        return "Tespit Edilemedi: netmiko kurulu değil"
     device_info = {
         "device_type": "autodetect",
         "host": ip_address,
@@ -127,24 +133,152 @@ def calculate_subnets(network_address, new_prefix):
 # ========================================================
 # --- YENİ NESİL AĞ TARAMA (ARP LAYER 2 SCANNER) ---
 # ========================================================
-def scan_network(ip_range):
-    """Layer 2 (ARP) tabanlı ağ tarayıcı."""
-    devices = []
+COMMON_OUI_VENDORS = {
+    '00:1A:2B': 'Cisco',
+    '00:1B:63': 'Apple',
+    '3C:5A:B4': 'Google',
+    'B8:27:EB': 'Raspberry Pi',
+    'DC:A6:32': 'Raspberry Pi',
+    'F4:F5:D8': 'Samsung',
+    'A4:5E:60': 'Apple',
+    'E8:50:8B': 'Samsung',
+    '00:50:56': 'VMware',
+    '08:00:27': 'VirtualBox',
+}
+
+
+def lookup_mac_vendor(mac_address):
+    """mac-vendor-lookup varsa onu, yoksa küçük yerel OUI sözlüğünü kullanır."""
+    if not mac_address:
+        return 'Bilinmiyor'
+    normalized = mac_address.upper().replace('-', ':')
     try:
-        arp_request = scapy.ARP(pdst=ip_range)
-        broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
-        arp_request_broadcast = broadcast / arp_request
-        answered_list = scapy.srp(arp_request_broadcast, timeout=2, verbose=False)[0]
-        
-        for element in answered_list:
-            ip_addr = element[1].psrc
-            mac_addr = element[1].hwsrc
+        from mac_vendor_lookup import MacLookup
+        return MacLookup().lookup(normalized)
+    except Exception:
+        oui = ':'.join(normalized.split(':')[:3])
+        return COMMON_OUI_VENDORS.get(oui, 'Bilinmiyor')
+
+
+def ping_host(ip_address, timeout_ms=700):
+    """OS ping komutu ile host erişilebilirliğini kontrol eder."""
+    count_arg = '-n' if platform.system().lower() == 'windows' else '-c'
+    timeout_arg = '-w' if platform.system().lower() == 'windows' else '-W'
+    timeout_value = str(timeout_ms if platform.system().lower() == 'windows' else max(1, timeout_ms // 1000))
+    command = ['ping', count_arg, '1', timeout_arg, timeout_value, str(ip_address)]
+    started = time.time()
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=3)
+        latency = round((time.time() - started) * 1000, 1)
+        return result.returncode == 0, latency
+    except Exception:
+        return False, None
+
+
+def raw_socket_probe(ip_address, ports=(22, 80, 443, 3389), timeout=0.4):
+    """
+    Raw socket izni gerektirmeden TCP connect probe yapar.
+    Admin/root yetkisi olan ortamlarda Scapy raw socket ile genişletilebilir.
+    """
+    for port in ports:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout)
+                if sock.connect_ex((str(ip_address), port)) == 0:
+                    return True, port
+        except OSError:
+            continue
+    return False, None
+
+
+def scan_network(ip_range, method='hybrid'):
+    """Ping, ARP ve raw-socket/TCP probe destekli gelişmiş ağ tarayıcı."""
+    devices_by_ip = {}
+    started = time.time()
+    try:
+        network = ipaddress.ip_network(ip_range, strict=False)
+        hosts = list(network.hosts())
+        if len(hosts) > 254:
+            return {"error": "Güvenlik için tek seferde en fazla /24 (254 host) taranabilir."}
+
+        if method in ('arp', 'hybrid'):
+            arp_request = scapy.ARP(pdst=str(network))
+            broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")
+            answered_list = scapy.srp(broadcast / arp_request, timeout=2, verbose=False)[0]
+            for element in answered_list:
+                ip_addr = element[1].psrc
+                mac_addr = element[1].hwsrc
+                devices_by_ip[ip_addr] = {
+                    'ip': ip_addr,
+                    'mac': mac_addr,
+                    'hostname': '',
+                    'vendor': lookup_mac_vendor(mac_addr),
+                    'detected_by': ['ARP'],
+                    'latency_ms': None,
+                    'raw_socket_open': False,
+                    'status': 'Aktif 🟢',
+                }
+
+        if method in ('ping', 'hybrid'):
+            with ThreadPoolExecutor(max_workers=32) as executor:
+                futures = {executor.submit(ping_host, str(host)): str(host) for host in hosts}
+                for future in as_completed(futures):
+                    ip_addr = futures[future]
+                    ok, latency = future.result()
+                    if not ok:
+                        continue
+                    item = devices_by_ip.setdefault(ip_addr, {
+                        'ip': ip_addr,
+                        'mac': '',
+                        'hostname': '',
+                        'vendor': 'Bilinmiyor',
+                        'detected_by': [],
+                        'latency_ms': latency,
+                        'raw_socket_open': False,
+                        'status': 'Aktif 🟢',
+                    })
+                    item['latency_ms'] = latency
+                    if 'Ping' not in item['detected_by']:
+                        item['detected_by'].append('Ping')
+
+        if method in ('raw_socket', 'hybrid'):
+            with ThreadPoolExecutor(max_workers=32) as executor:
+                futures = {executor.submit(raw_socket_probe, str(host)): str(host) for host in hosts}
+                for future in as_completed(futures):
+                    ip_addr = futures[future]
+                    is_open, port = future.result()
+                    if not is_open:
+                        continue
+                    item = devices_by_ip.setdefault(ip_addr, {
+                        'ip': ip_addr,
+                        'mac': '',
+                        'hostname': '',
+                        'vendor': 'Bilinmiyor',
+                        'detected_by': [],
+                        'latency_ms': None,
+                        'raw_socket_open': True,
+                        'status': 'Aktif 🟢',
+                    })
+                    item['raw_socket_open'] = True
+                    label = f'Raw Socket/TCP:{port}'
+                    if label not in item['detected_by']:
+                        item['detected_by'].append(label)
+
+        for item in devices_by_ip.values():
             try:
-                hostname = socket.gethostbyaddr(ip_addr)[0]
+                item['hostname'] = socket.gethostbyaddr(item['ip'])[0]
             except socket.herror:
-                hostname = "Bilinmeyen Cihaz"
-            devices.append({'ip': ip_addr, 'mac': mac_addr, 'hostname': hostname, 'status': 'Aktif 🟢'})
-        return {"active_ips": devices, "total_scanned": len(devices)}
+                item['hostname'] = "Bilinmeyen Cihaz"
+            item['detected_by'] = ', '.join(item['detected_by'])
+
+        devices = sorted(devices_by_ip.values(), key=lambda d: tuple(int(p) for p in d['ip'].split('.')))
+        return {
+            "active_ips": devices,
+            "total_scanned": len(hosts),
+            "active_count": len(devices),
+            "method": method,
+            "duration_ms": int((time.time() - started) * 1000),
+        }
     except Exception as e:
         return {"error": str(e)}
 
@@ -175,6 +309,9 @@ def deep_discover_device(ip_address):
 def push_config_to_device(ip_address, username, password, enable_secret, vendor, config_payload, device_obj=None, change_request_id=None):
     """Cihaza SSH üzerinden bağlanıp konfigürasyon basar."""
     from .models import ChangeRequest, IpAddress, SystemLog, Ticket
+
+    if ConnectHandler is None:
+        return False, "HATA: netmiko kurulu değil. SSH konfigürasyon gönderimi yapılamaz."
 
     try:
         device = {
@@ -244,6 +381,9 @@ def backup_device_config(device_obj, device_ip, username, password, vendor, user
     Cihaza SSH ile bağlanıp konfigürasyonunu çeker ve DeviceBackup tablosuna kaydeder.
     """
     from .models import DeviceBackup, SystemLog
+
+    if ConnectHandler is None:
+        return False, "netmiko kurulu değil. SSH yedekleme yapılamaz."
     
     try:
         device_details = {
@@ -310,6 +450,8 @@ def poll_device_hardware(device_obj, ip):
     security_details = ""
 
     try:
+        if ConnectHandler is None:
+            raise RuntimeError("netmiko kurulu değil")
         device['device_type'] = get_netmiko_device_type(device_obj.vendor)
         net_connect = ConnectHandler(**device)
         if device['secret']:

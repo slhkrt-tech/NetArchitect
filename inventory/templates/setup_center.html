@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+
+{% block title %}Kurulum & Sağlık Merkezi - OmniOps{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <div>
+        <h2 class="fw-bold mb-1">Kurulum & Sağlık Merkezi</h2>
+        <p class="text-muted mb-0">İlk kurulumdan canlı kullanıma kadar OmniOps hazır olma durumunu tek ekrandan takip edin.</p>
+    </div>
+    <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill">Hazırlık Skoru: %{{ score }}</span>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body">
+        <div class="text-muted small">Başarılı Kontrol</div>
+        <div class="display-6 fw-bold text-success">{{ ok_total }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body">
+        <div class="text-muted small">Kritik Eksik</div>
+        <div class="display-6 fw-bold text-danger">{{ critical_total }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body">
+        <div class="text-muted small">Opsiyonel Uyarı</div>
+        <div class="display-6 fw-bold text-warning">{{ warning_total }}</div>
+    </div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body">
+        <div class="text-muted small">Modül Kapsamı</div>
+        <div class="display-6 fw-bold">{{ module_status|length }}</div>
+    </div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-7">
+        <div class="card glass-card h-100">
+            <div class="card-header bg-transparent fw-bold">Canlıya Alma Kontrol Listesi</div>
+            <div class="card-body">
+                {% for item in checks %}
+                <div class="d-flex align-items-start gap-3 border-bottom py-3">
+                    <span class="rounded-circle d-inline-flex align-items-center justify-content-center flex-shrink-0 {% if item.ok %}bg-success-subtle text-success{% elif item.severity == 'warning' %}bg-warning-subtle text-warning{% else %}bg-danger-subtle text-danger{% endif %}" style="width: 38px; height: 38px;">
+                        <span class="iconify fs-5" data-icon="{% if item.ok %}mdi:check{% elif item.severity == 'warning' %}mdi:alert-outline{% else %}mdi:close{% endif %}"></span>
+                    </span>
+                    <div class="flex-grow-1">
+                        <div class="fw-bold">{{ item.title }}</div>
+                        <div class="text-muted small">{{ item.detail }}</div>
+                        {% if not item.ok and item.action %}
+                        <div class="small mt-1"><code>{{ item.action }}</code></div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-5">
+        <div class="card glass-card mb-4">
+            <div class="card-header bg-transparent fw-bold">Hızlı Başlangıç</div>
+            <div class="card-body">
+                {% for step in quick_start %}
+                <div class="mb-3">
+                    <div class="fw-bold">{{ step.title }}</div>
+                    <code class="d-block mt-1 p-2 rounded bg-body-tertiary">{{ step.command }}</code>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card glass-card">
+            <div class="card-header bg-transparent fw-bold">Modül Doluluk Durumu</div>
+            <div class="card-body">
+                {% for module in module_status %}
+                <a href="{{ module.url }}" class="d-flex justify-content-between align-items-center text-decoration-none border-bottom py-2" style="color: var(--text-main);">
+                    <span class="fw-bold">{{ module.title }}</span>
+                    <span class="badge {% if module.count %}bg-success-subtle text-success{% else %}bg-secondary-subtle text-secondary{% endif %}">{{ module.count }}</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

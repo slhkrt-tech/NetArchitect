@@ -3,38 +3,78 @@ from rest_framework.permissions import IsAuthenticated, IsAdminUser, AllowAny
 from rest_framework import status
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
+from django.db.models import Q
+from guardian.shortcuts import get_objects_for_user
 
 # Filtreleme, Arama ve Sıralama araçları
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 
-from .models import Device, IpAddress, Ticket, DevicePerformanceLog, ChangeRequest, RemoteProbe, SystemLog
-from .serializers import (
-    DeviceSerializer, IpAddressSerializer, TicketSerializer, UserSerializer,
-    DevicePerformanceLogSerializer, ChangeRequestSerializer, RemoteProbeSerializer
+from .models import (
+    Device, IpAddress, Ticket, DevicePerformanceLog, ChangeRequest, RemoteProbe, SystemLog,
+    TicketComment, TicketAttachment, TicketCategory, Notification,
+    NetworkScan, NetworkScanHost, FieldVisit, SalesOpportunity, DLPEvent,
+    FactoryArea, ConsumableItem, MaintenanceTask, EmployeeITProcess,
+    ProcurementRequest, OnCallShift, BackupJobMonitor, VendorSupportCase, AssetHandover,
+    MajorIncident, AccessRequest, PrinterFleetItem, Runbook,
+    RemoteAccessGrant, DepartmentChannel, DepartmentMessage, CameraDevice,
+    BusinessApplication, ReportTemplate,
+    ChangeCalendarEvent, ServiceDependency, IntegrationHealthCheck,
+    ComplianceControl, DocumentOutputJob,
 )
+from .serializers import (
+    DeviceSerializer, IpAddressSerializer, TicketSerializer, UserSerializer, UserCreateSerializer,
+    DevicePerformanceLogSerializer, ChangeRequestSerializer, RemoteProbeSerializer,
+    TicketCommentSerializer, TicketAttachmentSerializer, TicketCategorySerializer,
+    NotificationSerializer, NetworkScanSerializer, FieldVisitSerializer,
+    SalesOpportunitySerializer, DLPEventSerializer, FactoryAreaSerializer,
+    ConsumableItemSerializer, MaintenanceTaskSerializer, EmployeeITProcessSerializer,
+    ProcurementRequestSerializer, OnCallShiftSerializer, BackupJobMonitorSerializer,
+    VendorSupportCaseSerializer, AssetHandoverSerializer, MajorIncidentSerializer,
+    AccessRequestSerializer, PrinterFleetItemSerializer, RunbookSerializer,
+    RemoteAccessGrantSerializer, DepartmentChannelSerializer, DepartmentMessageSerializer,
+    CameraDeviceSerializer, BusinessApplicationSerializer, ReportTemplateSerializer,
+    ChangeCalendarEventSerializer, ServiceDependencySerializer,
+    IntegrationHealthCheckSerializer, ComplianceControlSerializer,
+    DocumentOutputJobSerializer,
+)
+from .permissions import IsSupportStaff, TicketObjectPermission, NotificationOwnerPermission
+from .helpdesk import is_support_staff, can_access_ticket, get_helpdesk_analytics
 
 # Konfigürasyon motorunu içe aktarıyoruz
-from .utils import generate_device_config
+from .utils import generate_device_config, scan_network
 
-class UserViewSet(viewsets.ReadOnlyModelViewSet):
-    """Kullanıcı listesini JSON olarak döner."""
-    queryset = User.objects.all()
-    serializer_class = UserSerializer
-    # Güvenlik: Sadece IT Personeli (Admin) kullanıcı listesini API'den çekebilir
-    permission_classes = [IsAdminUser] 
-    
-    # Arama ve Sıralama
+class UserViewSet(viewsets.ModelViewSet):
+    """Kullanıcı yönetimi API'si."""
+    queryset = User.objects.prefetch_related('groups', 'profile').order_by('id')
+    permission_classes = [IsAdminUser]
     filter_backends = [SearchFilter, OrderingFilter]
-    search_fields = ['username', 'email']
+    search_fields = ['username', 'email', 'first_name', 'last_name']
     ordering_fields = ['date_joined', 'username']
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return UserCreateSerializer
+        return UserSerializer
+
+    def get_permissions(self):
+        if self.action == 'me':
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
+
+    @action(detail=False, methods=['get'], url_path='me')
+    def me(self, request):
+        serializer = UserSerializer(request.user)
+        return Response(serializer.data)
 
 class DeviceViewSet(viewsets.ModelViewSet):
     """Cihaz envanterine API üzerinden CRUD işlemi yapar."""
-    queryset = Device.objects.all()
+    queryset = Device.objects.order_by('id')
     serializer_class = DeviceSerializer
     permission_classes = [IsAuthenticated]
 
@@ -96,7 +136,7 @@ class DeviceViewSet(viewsets.ModelViewSet):
 
 class IpAddressViewSet(viewsets.ModelViewSet):
     """IP adresi haritasını ve atamalarını JSON döner."""
-    queryset = IpAddress.objects.all()
+    queryset = IpAddress.objects.order_by('id')
     serializer_class = IpAddressSerializer
     permission_classes = [IsAuthenticated]
     
@@ -104,25 +144,651 @@ class IpAddressViewSet(viewsets.ModelViewSet):
     filterset_fields = ['device']
     search_fields = ['address']
 
+
+class NetworkScanViewSet(viewsets.ModelViewSet):
+    """Ping/ARP/raw-socket destekli ağ tarama geçmişi ve tetikleyici API."""
+    queryset = NetworkScan.objects.select_related('requested_by').prefetch_related('hosts').all()
+    serializer_class = NetworkScanSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['method', 'requested_by']
+    search_fields = ['network', 'hosts__ip_address', 'hosts__mac_address', 'hosts__vendor']
+    ordering_fields = ['created_at', 'active_hosts', 'duration_ms']
+    http_method_names = ['get', 'post', 'head', 'options']
+
+    def create(self, request, *args, **kwargs):
+        network = request.data.get('network', '192.168.1.0/24')
+        method = request.data.get('method', 'hybrid')
+        result = scan_network(network, method=method)
+
+        scan = NetworkScan.objects.create(
+            requested_by=request.user,
+            network=network,
+            method=method,
+            total_hosts=result.get('total_scanned', 0),
+            active_hosts=len(result.get('active_ips', [])),
+            duration_ms=result.get('duration_ms', 0),
+            error=result.get('error', ''),
+        )
+        for host in result.get('active_ips', []):
+            NetworkScanHost.objects.create(
+                scan=scan,
+                ip_address=host.get('ip'),
+                mac_address=host.get('mac', ''),
+                hostname=host.get('hostname', ''),
+                vendor=host.get('vendor', ''),
+                detected_by=host.get('detected_by', ''),
+                latency_ms=host.get('latency_ms'),
+                raw_socket_open=host.get('raw_socket_open', False),
+            )
+        return Response(NetworkScanSerializer(scan).data, status=status.HTTP_201_CREATED)
+
+
 class TicketViewSet(viewsets.ModelViewSet):
     """Destek biletlerini API üzerinden yönetir."""
+    queryset = Ticket.objects.none()
     serializer_class = TicketSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, TicketObjectPermission]
 
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status', 'priority', 'category', 'device']
+    filterset_fields = ['status', 'priority', 'category', 'device', 'assigned_to', 'is_escalated']
     search_fields = ['title', 'description']
-    ordering_fields = ['created_at', 'priority']
+    ordering_fields = ['created_at', 'priority', 'sla_deadline']
 
     def get_queryset(self):
-        """Güvenlik Filtresi: Admin tümünü, kullanıcı sadece kendi biletlerini görür."""
+        if getattr(self, 'swagger_fake_view', False):
+            return Ticket.objects.none()
         user = self.request.user
-        if user.is_staff:
-            return Ticket.objects.all()
-        return Ticket.objects.filter(created_by=user)
+        qs = Ticket.objects.select_related('created_by', 'assigned_to', 'device', 'ticket_category')
+        if user.is_staff or is_support_staff(user):
+            return qs.all()
+        return qs.filter(Q(created_by=user) | Q(assigned_to=user))
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+        from .dlp import inspect_text_for_dlp, has_blocking_dlp_event
+
+        title = serializer.validated_data.get('title', '')
+        description = serializer.validated_data.get('description', '')
+        dlp_events = inspect_text_for_dlp(
+            f"{title}\n{description}",
+            user=self.request.user,
+            source='ticket_api',
+            block=True,
+        )
+        if has_blocking_dlp_event(dlp_events):
+            raise PermissionDenied('DLP politikası: Talep metni hassas veri içeriyor.')
         serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='assign')
+    def assign(self, request, pk=None):
+        if not is_support_staff(request.user):
+            return Response({'error': 'Yetkisiz'}, status=status.HTTP_403_FORBIDDEN)
+        ticket = self.get_object()
+        assignee_id = request.data.get('assigned_to')
+        if not assignee_id:
+            return Response({'error': 'assigned_to gerekli'}, status=status.HTTP_400_BAD_REQUEST)
+        assignee = User.objects.filter(pk=assignee_id, is_active=True).first()
+        if not assignee:
+            return Response({'error': 'Kullanıcı bulunamadı'}, status=status.HTTP_404_NOT_FOUND)
+        ticket.assigned_to = assignee
+        ticket.save()
+        from .helpdesk import notify_user
+        notify_user(assignee, f'Talep atandı: #{ticket.id}', ticket.title,
+                    link=f'/talep/{ticket.id}/', notification_type='assignment', ticket=ticket)
+        return Response(TicketSerializer(ticket).data)
+
+    @action(detail=True, methods=['post'], url_path='close')
+    def close(self, request, pk=None):
+        ticket = self.get_object()
+        if not can_access_ticket(request.user, ticket):
+            return Response({'error': 'Yetkisiz'}, status=status.HTTP_403_FORBIDDEN)
+        ticket.status = request.data.get('status', 'Kapatildi')
+        ticket.save()
+        return Response(TicketSerializer(ticket).data)
+
+    @action(detail=False, methods=['get'], url_path='analytics')
+    def analytics(self, request):
+        if not is_support_staff(request.user):
+            return Response({'error': 'Yetkisiz'}, status=status.HTTP_403_FORBIDDEN)
+        return Response(get_helpdesk_analytics())
+
+
+class TicketCommentViewSet(viewsets.ModelViewSet):
+    queryset = TicketComment.objects.none()
+    serializer_class = TicketCommentSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_fields = ['ticket']
+    ordering_fields = ['created_at']
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return TicketComment.objects.none()
+        qs = TicketComment.objects.select_related('author', 'ticket')
+        user = self.request.user
+        if is_support_staff(user):
+            return qs
+        return qs.filter(ticket__created_by=user, is_internal=False)
+
+    def perform_create(self, serializer):
+        ticket = serializer.validated_data['ticket']
+        if not can_access_ticket(self.request.user, ticket):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Bu talebe yorum ekleyemezsiniz.')
+        serializer.save(author=self.request.user)
+
+
+class TicketAttachmentViewSet(viewsets.ModelViewSet):
+    queryset = TicketAttachment.objects.none()
+    serializer_class = TicketAttachmentSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['ticket']
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return TicketAttachment.objects.none()
+        user = self.request.user
+        qs = TicketAttachment.objects.select_related('uploaded_by', 'ticket')
+        if is_support_staff(user):
+            return qs
+        return qs.filter(ticket__created_by=user)
+
+    def perform_create(self, serializer):
+        ticket = serializer.validated_data['ticket']
+        if not can_access_ticket(self.request.user, ticket):
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied('Bu talebe dosya ekleyemezsiniz.')
+        serializer.save(uploaded_by=self.request.user)
+
+
+class TicketCategoryViewSet(viewsets.ModelViewSet):
+    queryset = TicketCategory.objects.filter(is_active=True)
+    serializer_class = TicketCategorySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [SearchFilter]
+    search_fields = ['name', 'slug']
+
+    def get_permissions(self):
+        if self.action in ('create', 'update', 'partial_update', 'destroy'):
+            return [IsAdminUser()]
+        return super().get_permissions()
+
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    queryset = Notification.objects.none()
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated, NotificationOwnerPermission]
+    http_method_names = ['get', 'patch', 'head', 'options']
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Notification.objects.none()
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+    @action(detail=False, methods=['post'], url_path='mark-all-read')
+    def mark_all_read(self, request):
+        self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'status': 'ok'})
+
+    @action(detail=False, methods=['get'], url_path='unread-count')
+    def unread_count(self, request):
+        count = self.get_queryset().filter(is_read=False).count()
+        return Response({'unread_count': count})
+
+
+class FieldVisitViewSet(viewsets.ModelViewSet):
+    queryset = FieldVisit.objects.none()
+    serializer_class = FieldVisitSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['status', 'technician']
+    search_fields = ['title', 'customer_name', 'address']
+    ordering_fields = ['order_index', 'scheduled_at', 'distance_km']
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return FieldVisit.objects.none()
+        qs = FieldVisit.objects.select_related('technician', 'ticket')
+        if is_support_staff(self.request.user):
+            return qs.all()
+        return qs.filter(technician=self.request.user)
+
+    def perform_create(self, serializer):
+        technician_id = self.request.data.get('technician')
+        technician = User.objects.filter(id=technician_id).first() if technician_id and is_support_staff(self.request.user) else self.request.user
+        serializer.save(technician=technician)
+
+    @action(detail=False, methods=['post'], url_path='optimize-route')
+    def optimize_route(self, request):
+        visit_ids = request.data.get('visit_ids', [])
+        visits = list(self.get_queryset().filter(id__in=visit_ids))
+        # Basit nearest-neighbor: coğrafi koordinat varsa bir önceki noktaya en yakın sıraya dizer.
+        ordered = []
+        current = None
+        remaining = visits[:]
+        while remaining:
+            if not current:
+                next_visit = remaining.pop(0)
+            else:
+                next_visit = min(
+                    remaining,
+                    key=lambda v: ((v.latitude or 0) - (current.latitude or 0)) ** 2 + ((v.longitude or 0) - (current.longitude or 0)) ** 2,
+                )
+                remaining.remove(next_visit)
+            ordered.append(next_visit)
+            current = next_visit
+        for idx, visit in enumerate(ordered):
+            visit.order_index = idx + 1
+            visit.save(update_fields=['order_index', 'updated_at'])
+        return Response(FieldVisitSerializer(ordered, many=True).data)
+
+
+class SalesOpportunityViewSet(viewsets.ModelViewSet):
+    queryset = SalesOpportunity.objects.none()
+    serializer_class = SalesOpportunitySerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['stage', 'owner']
+    search_fields = ['title', 'customer_name', 'notes']
+    ordering_fields = ['position', 'potential_revenue', 'updated_at']
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return SalesOpportunity.objects.none()
+        qs = SalesOpportunity.objects.select_related('owner')
+        if is_support_staff(self.request.user):
+            return qs.all()
+        return qs.filter(owner=self.request.user)
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    @action(detail=True, methods=['patch'], url_path='move')
+    def move(self, request, pk=None):
+        opportunity = self.get_object()
+        stage = request.data.get('stage')
+        if stage not in dict(SalesOpportunity.STAGE_CHOICES):
+            return Response({'error': 'Geçersiz aşama'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            position = int(request.data.get('position', opportunity.position))
+        except (TypeError, ValueError):
+            return Response({'error': 'Geçersiz pozisyon'}, status=status.HTTP_400_BAD_REQUEST)
+        opportunity.stage = stage
+        opportunity.position = position
+        opportunity.save(update_fields=['stage', 'position', 'updated_at'])
+        return Response(SalesOpportunitySerializer(opportunity).data)
+
+
+class DLPEventViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = DLPEventSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    queryset = DLPEvent.objects.select_related('user').all()
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['severity', 'blocked', 'source']
+    search_fields = ['rule', 'excerpt', 'user__username']
+    ordering_fields = ['created_at', 'severity']
+
+
+class FactoryAreaViewSet(viewsets.ModelViewSet):
+    queryset = FactoryArea.objects.order_by('name')
+    serializer_class = FactoryAreaSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['criticality']
+    search_fields = ['name', 'code', 'manager_name']
+    ordering_fields = ['name', 'criticality', 'created_at']
+
+
+class ConsumableItemViewSet(viewsets.ModelViewSet):
+    queryset = ConsumableItem.objects.order_by('category', 'name')
+    serializer_class = ConsumableItemSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['category', 'location', 'vendor']
+    search_fields = ['name', 'sku', 'compatible_with', 'location', 'vendor']
+    ordering_fields = ['name', 'quantity', 'minimum_quantity', 'updated_at']
+
+
+class MaintenanceTaskViewSet(viewsets.ModelViewSet):
+    queryset = MaintenanceTask.objects.select_related('factory_area', 'device', 'asset', 'owner').order_by('next_due_at')
+    serializer_class = MaintenanceTaskSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['task_type', 'status', 'factory_area', 'owner']
+    search_fields = ['title', 'checklist', 'notes', 'factory_area__name']
+    ordering_fields = ['next_due_at', 'status', 'task_type', 'updated_at']
+
+    @action(detail=True, methods=['post'], url_path='mark-done')
+    def mark_done(self, request, pk=None):
+        task = self.get_object()
+        task.mark_done()
+        return Response(self.get_serializer(task).data)
+
+
+class EmployeeITProcessViewSet(viewsets.ModelViewSet):
+    queryset = EmployeeITProcess.objects.select_related('factory_area', 'requester', 'assigned_to').order_by('status', 'due_date')
+    serializer_class = EmployeeITProcessSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['process_type', 'status', 'factory_area', 'assigned_to']
+    search_fields = ['employee_name', 'department', 'notes']
+    ordering_fields = ['due_date', 'status', 'created_at', 'updated_at']
+
+    def perform_create(self, serializer):
+        serializer.save(requester=self.request.user)
+
+
+class ProcurementRequestViewSet(viewsets.ModelViewSet):
+    queryset = ProcurementRequest.objects.select_related('requester', 'approved_by', 'factory_area').order_by('-created_at')
+    serializer_class = ProcurementRequestSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['category', 'status', 'factory_area']
+    search_fields = ['title', 'description', 'vendor_name']
+    ordering_fields = ['created_at', 'needed_by', 'estimated_cost']
+
+    def perform_create(self, serializer):
+        serializer.save(requester=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        procurement = self.get_object()
+        procurement.status = 'approved'
+        procurement.approved_by = request.user
+        procurement.save(update_fields=['status', 'approved_by', 'updated_at'])
+        return Response(self.get_serializer(procurement).data)
+
+
+class OnCallShiftViewSet(viewsets.ModelViewSet):
+    queryset = OnCallShift.objects.select_related('engineer').order_by('-start_at')
+    serializer_class = OnCallShiftSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['engineer', 'is_primary']
+    search_fields = ['engineer__username', 'phone', 'notes']
+    ordering_fields = ['start_at', 'end_at']
+
+
+class BackupJobMonitorViewSet(viewsets.ModelViewSet):
+    queryset = BackupJobMonitor.objects.select_related('owner').order_by('last_status', 'next_run_at')
+    serializer_class = BackupJobMonitorSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['system_type', 'last_status', 'is_active', 'owner']
+    search_fields = ['name', 'target_host', 'schedule_description', 'notes']
+    ordering_fields = ['next_run_at', 'last_run_at', 'name']
+
+    @action(detail=True, methods=['post'], url_path='mark-success')
+    def mark_success(self, request, pk=None):
+        job = self.get_object()
+        job.last_status = 'success'
+        job.last_run_at = timezone.now()
+        job.save(update_fields=['last_status', 'last_run_at', 'updated_at'])
+        return Response(self.get_serializer(job).data)
+
+
+class VendorSupportCaseViewSet(viewsets.ModelViewSet):
+    queryset = VendorSupportCase.objects.select_related('vendor_contract', 'assigned_to').order_by('status', '-opened_at')
+    serializer_class = VendorSupportCaseSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['priority', 'status', 'assigned_to', 'vendor_name']
+    search_fields = ['title', 'vendor_name', 'case_number', 'description']
+    ordering_fields = ['opened_at', 'priority', 'status']
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve(self, request, pk=None):
+        case = self.get_object()
+        case.status = 'resolved'
+        case.resolved_at = timezone.now()
+        case.save(update_fields=['status', 'resolved_at', 'updated_at'])
+        return Response(self.get_serializer(case).data)
+
+
+class AssetHandoverViewSet(viewsets.ModelViewSet):
+    queryset = AssetHandover.objects.select_related('asset', 'factory_area', 'performed_by').order_by('-handover_date')
+    serializer_class = AssetHandoverSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['action', 'factory_area', 'asset']
+    search_fields = ['employee_name', 'department', 'asset__name', 'condition_notes']
+    ordering_fields = ['handover_date', 'created_at']
+
+    def perform_create(self, serializer):
+        serializer.save(performed_by=self.request.user)
+
+
+class MajorIncidentViewSet(viewsets.ModelViewSet):
+    queryset = MajorIncident.objects.select_related('factory_area', 'ticket', 'incident_commander').order_by('status', '-started_at')
+    serializer_class = MajorIncidentSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['severity', 'status', 'factory_area', 'incident_commander']
+    search_fields = ['title', 'impact_summary', 'root_cause', 'corrective_actions']
+    ordering_fields = ['started_at', 'resolved_at', 'severity', 'status']
+
+    @action(detail=True, methods=['post'], url_path='resolve')
+    def resolve(self, request, pk=None):
+        incident = self.get_object()
+        incident.status = 'resolved'
+        incident.resolved_at = timezone.now()
+        incident.save(update_fields=['status', 'resolved_at', 'updated_at'])
+        return Response(self.get_serializer(incident).data)
+
+
+class AccessRequestViewSet(viewsets.ModelViewSet):
+    queryset = AccessRequest.objects.select_related('requester', 'approved_by').order_by('status', '-created_at')
+    serializer_class = AccessRequestSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['access_type', 'status', 'department']
+    search_fields = ['employee_name', 'department', 'target_system', 'justification']
+    ordering_fields = ['created_at', 'expires_at', 'status']
+
+    def perform_create(self, serializer):
+        serializer.save(requester=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        access_request = self.get_object()
+        access_request.status = 'approved'
+        access_request.approved_by = request.user
+        access_request.save(update_fields=['status', 'approved_by', 'updated_at'])
+        return Response(self.get_serializer(access_request).data)
+
+    @action(detail=True, methods=['post'], url_path='provision')
+    def provision(self, request, pk=None):
+        access_request = self.get_object()
+        access_request.status = 'provisioned'
+        access_request.provisioned_at = timezone.now()
+        access_request.save(update_fields=['status', 'provisioned_at', 'updated_at'])
+        return Response(self.get_serializer(access_request).data)
+
+
+class PrinterFleetItemViewSet(viewsets.ModelViewSet):
+    queryset = PrinterFleetItem.objects.select_related('factory_area', 'consumable').order_by('status', 'name')
+    serializer_class = PrinterFleetItemSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['device_kind', 'status', 'factory_area', 'consumable']
+    search_fields = ['name', 'ip_address', 'serial_number', 'model', 'notes']
+    ordering_fields = ['name', 'page_counter', 'toner_level_percent', 'updated_at']
+
+    @action(detail=True, methods=['post'], url_path='maintenance-done')
+    def maintenance_done(self, request, pk=None):
+        printer = self.get_object()
+        printer.status = 'online'
+        printer.last_maintenance_at = timezone.now()
+        printer.save(update_fields=['status', 'last_maintenance_at', 'updated_at'])
+        return Response(self.get_serializer(printer).data)
+
+
+class RunbookViewSet(viewsets.ModelViewSet):
+    queryset = Runbook.objects.select_related('owner').order_by('category', 'title')
+    serializer_class = RunbookSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['category', 'is_active', 'owner']
+    search_fields = ['title', 'steps', 'rollback_steps', 'related_device_type']
+    ordering_fields = ['title', 'category', 'updated_at', 'last_reviewed_at']
+
+
+class RemoteAccessGrantViewSet(viewsets.ModelViewSet):
+    queryset = RemoteAccessGrant.objects.select_related('approved_by').order_by('status', 'expires_at')
+    serializer_class = RemoteAccessGrantSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['access_method', 'status', 'department', 'mfa_required']
+    search_fields = ['employee_name', 'department', 'target_resource', 'gateway', 'allowed_source']
+    ordering_fields = ['created_at', 'expires_at', 'status']
+
+    @action(detail=True, methods=['post'], url_path='activate')
+    def activate(self, request, pk=None):
+        grant = self.get_object()
+        grant.status = 'active'
+        grant.approved_by = request.user
+        grant.save(update_fields=['status', 'approved_by', 'updated_at'])
+        return Response(self.get_serializer(grant).data)
+
+
+class DepartmentChannelViewSet(viewsets.ModelViewSet):
+    queryset = DepartmentChannel.objects.order_by('department', 'name')
+    serializer_class = DepartmentChannelSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['department', 'is_active']
+    search_fields = ['name', 'department', 'description']
+    ordering_fields = ['name', 'department', 'created_at']
+
+
+class DepartmentMessageViewSet(viewsets.ModelViewSet):
+    queryset = DepartmentMessage.objects.select_related('channel', 'author').order_by('-created_at')
+    serializer_class = DepartmentMessageSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['channel', 'is_announcement']
+    search_fields = ['message', 'author__username', 'channel__name']
+    ordering_fields = ['created_at']
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class CameraDeviceViewSet(viewsets.ModelViewSet):
+    queryset = CameraDevice.objects.select_related('factory_area').order_by('status', 'location', 'name')
+    serializer_class = CameraDeviceSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['device_type', 'status', 'factory_area']
+    search_fields = ['name', 'ip_address', 'location', 'notes']
+    ordering_fields = ['name', 'status', 'updated_at', 'recording_days']
+
+
+class BusinessApplicationViewSet(viewsets.ModelViewSet):
+    queryset = BusinessApplication.objects.select_related('technical_owner').order_by('app_type', 'name')
+    serializer_class = BusinessApplicationSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['app_type', 'status', 'sso_enabled', 'owner_department']
+    search_fields = ['name', 'url', 'owner_department', 'notes']
+    ordering_fields = ['name', 'app_type', 'status', 'updated_at']
+
+
+class ReportTemplateViewSet(viewsets.ModelViewSet):
+    queryset = ReportTemplate.objects.select_related('owner').order_by('report_type', 'title')
+    serializer_class = ReportTemplateSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['report_type', 'is_active', 'owner']
+    search_fields = ['title', 'description', 'query_notes', 'output_format']
+    ordering_fields = ['title', 'report_type', 'updated_at']
+
+
+class ChangeCalendarEventViewSet(viewsets.ModelViewSet):
+    queryset = ChangeCalendarEvent.objects.select_related('factory_area', 'change_request', 'owner').order_by('start_at')
+    serializer_class = ChangeCalendarEventSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['event_type', 'risk_level', 'status', 'factory_area', 'owner']
+    search_fields = ['title', 'expected_impact', 'rollback_plan']
+    ordering_fields = ['start_at', 'end_at', 'risk_level', 'status']
+
+    @action(detail=True, methods=['post'], url_path='complete')
+    def complete(self, request, pk=None):
+        event = self.get_object()
+        event.status = 'completed'
+        event.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(event).data)
+
+
+class ServiceDependencyViewSet(viewsets.ModelViewSet):
+    queryset = ServiceDependency.objects.select_related('business_application', 'device').order_by('criticality', 'business_application__name')
+    serializer_class = ServiceDependencySerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['business_application', 'device', 'dependency_type', 'criticality']
+    search_fields = ['name', 'business_application__name', 'device__name', 'impact_description']
+    ordering_fields = ['criticality', 'created_at']
+
+
+class IntegrationHealthCheckViewSet(viewsets.ModelViewSet):
+    queryset = IntegrationHealthCheck.objects.select_related('owner').order_by('last_status', 'name')
+    serializer_class = IntegrationHealthCheckSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['integration_type', 'last_status', 'owner']
+    search_fields = ['name', 'endpoint_url', 'notes']
+    ordering_fields = ['last_status', 'last_checked_at', 'response_time_ms', 'updated_at']
+
+    @action(detail=True, methods=['post'], url_path='mark-healthy')
+    def mark_healthy(self, request, pk=None):
+        check = self.get_object()
+        check.last_status = 'healthy'
+        check.last_checked_at = timezone.now()
+        check.save(update_fields=['last_status', 'last_checked_at', 'updated_at'])
+        return Response(self.get_serializer(check).data)
+
+
+class ComplianceControlViewSet(viewsets.ModelViewSet):
+    queryset = ComplianceControl.objects.select_related('owner').order_by('status', 'due_date')
+    serializer_class = ComplianceControlSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['framework', 'status', 'owner']
+    search_fields = ['title', 'evidence', 'remediation_plan']
+    ordering_fields = ['due_date', 'status', 'updated_at']
+
+    @action(detail=True, methods=['post'], url_path='mark-compliant')
+    def mark_compliant(self, request, pk=None):
+        control = self.get_object()
+        control.status = 'compliant'
+        control.last_checked_at = timezone.now().date()
+        control.save(update_fields=['status', 'last_checked_at', 'updated_at'])
+        return Response(self.get_serializer(control).data)
+
+
+class DocumentOutputJobViewSet(viewsets.ModelViewSet):
+    queryset = DocumentOutputJob.objects.select_related('requested_by', 'template').order_by('status', '-created_at')
+    serializer_class = DocumentOutputJobSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['job_type', 'status', 'output_format', 'template']
+    search_fields = ['title', 'notes', 'template__title']
+    ordering_fields = ['created_at', 'updated_at', 'status']
+
+    def perform_create(self, serializer):
+        serializer.save(requested_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='mark-ready')
+    def mark_ready(self, request, pk=None):
+        job = self.get_object()
+        job.status = 'ready'
+        job.save(update_fields=['status', 'updated_at'])
+        return Response(self.get_serializer(job).data)
+
 
 class DevicePerformanceLogViewSet(viewsets.ReadOnlyModelViewSet):
     """Cihaz performans geçmişini API olarak sunar."""
@@ -141,14 +807,19 @@ class RemoteProbeViewSet(viewsets.ModelViewSet):
     """Uzak Ajanların (Probe) merkez sunucuyla iletişim kurduğu API noktası."""
     queryset = RemoteProbe.objects.all()
     serializer_class = RemoteProbeSerializer
-    
-    # Probelar standart kullanıcı olmadığından Auth'u pas geçip Header Secret ile doğrulayacağız
-    permission_classes = [AllowAny]
+    permission_classes = [IsAdminUser]
     
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'location']
     search_fields = ['name', 'location', 'ip_address']
     ordering_fields = ['last_heartbeat']
+
+    def get_permissions(self):
+        # Ajanlar standart kullanıcı olmadığından sadece heartbeat/sync-data
+        # uçları shared-secret ile dış dünyaya açıktır.
+        if self.action in ['heartbeat', 'sync_data']:
+            return [AllowAny()]
+        return [IsAdminUser()]
 
     def _verify_probe_secret(self, request):
         """Güvenlik: Gelen isteğin gerçekten bizim ajanımızdan gelip gelmediğini doğrula."""
@@ -204,6 +875,13 @@ class RemoteProbeViewSet(viewsets.ModelViewSet):
         discovered_ips = request.data.get('discovered_ips', [])
         performance_metrics = request.data.get('performance_metrics', {})
         device_configs = request.data.get('device_configs', [])
+
+        if not isinstance(discovered_ips, list):
+            return Response({'error': 'discovered_ips liste olmalıdır'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(performance_metrics, dict):
+            return Response({'error': 'performance_metrics nesne olmalıdır'}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(device_configs, list):
+            return Response({'error': 'device_configs liste olmalıdır'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             probe = RemoteProbe.objects.get(id=probe_id)
@@ -279,7 +957,7 @@ class ChangeRequestViewSet(viewsets.ModelViewSet):
     """ChangeRequest nesnesini API ile yöneten viewset."""
     queryset = ChangeRequest.objects.all()
     serializer_class = ChangeRequestSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsSupportStaff]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status', 'requester', 'target_ip', 'vendor']
     search_fields = ['title', 'config_payload']
@@ -328,15 +1006,20 @@ class ChangeRequestViewSet(viewsets.ModelViewSet):
 # ==================================================
 # --- KABİN ÇİZİMİ İÇİN API ---
 # ==================================================
+@extend_schema(responses={200: OpenApiTypes.OBJECT})
 @api_view(['GET'])
-@permission_classes([AllowAny]) 
+@permission_classes([IsAuthenticated])
 def get_rack_devices(request):
     """
     Sadece 'rack_name' (kabin adı) olan cihazları JSON olarak döndürür.
     Rack çizim sayfasındaki (JavaScript) fetch API bu endpoint'i kullanır.
     """
     # Kabin adı boş olmayan cihazları getir
-    devices = Device.objects.exclude(rack_name__isnull=True).exclude(rack_name__exact='')
+    if request.user.is_superuser:
+        devices = Device.objects.all()
+    else:
+        devices = get_objects_for_user(request.user, 'inventory.view_device')
+    devices = devices.exclude(rack_name__isnull=True).exclude(rack_name__exact='')
     data = []
     for d in devices:
         data.append({

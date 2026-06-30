@@ -1,10 +1,10 @@
 [server]
-# NetArchitect merkez sunucu URL'si
-url = https://netarchitect.example.com
+# OmniOps merkez sunucu URL'si
+url = https://omniops.example.com
 
 # Probe güvenliği için shared secret key
 # settings.py'deki REMOTE_PROBE_SHARED_SECRET ile eşleşmeli
-shared_secret = netarchitect_probe_secret
+shared_secret = omniops_probe_secret
 
 # Heartbeat gönderme aralığı (saniye)
 # Probe'un canlı olduğunu merkez sunucuya bildirmek için
@@ -105,7 +105,7 @@ max_payload_size = 10485760
 #
 # 2. Systemd service olarak çalıştırmak:
 #    [Unit]
-#    Description=NetArchitect Remote Probe
+#    Description=OmniOps Remote Probe
 #    After=network.target
 #
 #    [Service]
@@ -130,7 +130,7 @@ max_payload_size = 10485760
 #
 # 5. Shared Secret'ı güvenli tutun:
 #    Django settings.py'de:
-#    REMOTE_PROBE_SHARED_SECRET = os.environ.get('REMOTE_PROBE_SHARED_SECRET', 'netarchitect_probe_secret')
+#    REMOTE_PROBE_SHARED_SECRET = os.environ.get('REMOTE_PROBE_SHARED_SECRET', 'omniops_probe_secret')
 #
 #    Sistemde environment variable olarak set edin:
 #    export REMOTE_PROBE_SHARED_SECRET="your_secret_key"

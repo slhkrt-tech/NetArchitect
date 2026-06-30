@@ -1,43 +1,9 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 # --- GÖRÜNÜMLERİ (VIEWS) İÇE AKTAR ---
 from . import views
 
-# api_views.py dosyasındaki tüm ViewSet'leri içe aktarıyoruz
-from .api_views import (
-    UserViewSet,
-    DeviceViewSet,
-    IpAddressViewSet,
-    TicketViewSet,
-    DevicePerformanceLogViewSet,
-    ChangeRequestViewSet,
-    RemoteProbeViewSet  # Yeni eklenen Dağıtık Ajan API'si
-)
-
-# API Router tanımlaması
-router = DefaultRouter()
-
-# Mevcut API Uç Noktaları
-router.register(r'users', UserViewSet, basename='user')
-router.register(r'devices', DeviceViewSet, basename='device')
-router.register(r'ip-addresses', IpAddressViewSet, basename='ipaddress')
-router.register(r'tickets', TicketViewSet, basename='ticket')
-router.register(r'performance-logs', DevicePerformanceLogViewSet, basename='performancelog')
-router.register(r'change-requests', ChangeRequestViewSet, basename='changerequest')
-
-# =========================================================
-# --- YENİ EKLENEN: DAĞITIK PROBE (AJAN) API UÇ NOKTASI ---
-# =========================================================
-router.register(r'probes', RemoteProbeViewSet, basename='probe')
-
-# URL Patterns
 urlpatterns = [
-    # ---------------------------------------------------------
-    # --- API YÖNLENDİRMELERİ (DRF ROUTER) ---
-    # ---------------------------------------------------------
-    path('api/', include(router.urls)), # API yollarını /api/ altına aldık ki sayfalarla karışmasın
-
     # ---------------------------------------------------------
     # --- WEB SAYFASI (CRUD) YÖNLENDİRMELERİ ---
     # ---------------------------------------------------------

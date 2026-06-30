@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+{% load i18n %}
+
+{% block title %}Kullanıcı Yönetimi - OmniOps{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold mb-0">Kullanıcı Yönetimi</h2>
+    <a href="{% url 'helpdesk_analytics' %}" class="btn btn-outline-primary">Analitik Paneli</a>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card glass-card">
+            <div class="card-body">
+                <h5 class="fw-bold mb-3">Yeni Kullanıcı</h5>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_user">
+                    {% for field in user_form %}
+                    <div class="mb-3">
+                        <label class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                    </div>
+                    {% endfor %}
+                    <div class="mb-3">
+                        <label class="form-label">Rol</label>
+                        <select name="role" class="form-select">
+                            {% for role in roles %}
+                            <option value="{{ role }}">{{ role }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">Oluştur</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="pro-table-wrapper">
+            <table class="pro-table">
+                <thead>
+                    <tr>
+                        <th>Kullanıcı</th>
+                        <th>E-posta</th>
+                        <th>Rol</th>
+                        <th>Durum</th>
+                        <th>Kayıt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for u in users %}
+                <tr>
+                    <td class="fw-bold">{{ u.username }}</td>
+                    <td>{{ u.email|default:"—" }}</td>
+                    <td>
+                        {% for g in u.groups.all %}
+                        <span class="badge bg-secondary">{{ g.name }}</span>
+                        {% empty %}
+                        <span class="text-muted">—</span>
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}<span class="badge bg-success">Aktif</span>{% else %}<span class="badge bg-danger">Pasif</span>{% endif %}
+                    </td>
+                    <td class="small text-muted">{{ u.date_joined|date:"d.m.Y" }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -21,3 +21,8 @@ python-dotenv
 boto3
 gunicorn
 whitenoise
+Pillow>=10.0
+mac-vendor-lookup
+networkx
+matplotlib
+requests
