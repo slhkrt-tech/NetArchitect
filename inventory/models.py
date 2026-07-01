@@ -1598,6 +1598,593 @@ class DocumentOutputJob(models.Model):
         return self.title
 
 
+class DirectoryConnection(models.Model):
+    """Active Directory/LDAP bağlantı profili ve sync ayarları."""
+    DIRECTORY_TYPE_CHOICES = (
+        ('active_directory', 'Active Directory'),
+        ('ldap', 'LDAP'),
+        ('azure_ad', 'Azure AD / Entra ID'),
+        ('manual', 'Manuel / CSV'),
+    )
+    STATUS_CHOICES = (
+        ('not_configured', 'Yapılandırılmadı'),
+        ('healthy', 'Sağlıklı'),
+        ('warning', 'Uyarı'),
+        ('failed', 'Hata'),
+    )
+
+    name = models.CharField(max_length=150, verbose_name="Bağlantı Adı")
+    directory_type = models.CharField(max_length=30, choices=DIRECTORY_TYPE_CHOICES, default='active_directory', db_index=True, verbose_name="Tip")
+    server_uri = models.CharField(max_length=300, blank=True, verbose_name="Sunucu URI")
+    base_dn = models.CharField(max_length=300, blank=True, verbose_name="Base DN")
+    bind_username = models.CharField(max_length=180, blank=True, verbose_name="Bind Kullanıcısı")
+    user_filter = models.CharField(max_length=300, default='(objectClass=user)', verbose_name="Kullanıcı Filtresi")
+    group_filter = models.CharField(max_length=300, default='(objectClass=group)', verbose_name="Grup Filtresi")
+    sync_enabled = models.BooleanField(default=False, db_index=True, verbose_name="Sync Aktif")
+    last_sync_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Sync")
+    last_sync_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='not_configured', db_index=True, verbose_name="Son Durum")
+    last_sync_message = models.TextField(blank=True, verbose_name="Son Sync Mesajı")
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='directory_connections', verbose_name="Sorumlu")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Directory Bağlantısı"
+        verbose_name_plural = "Directory Bağlantıları"
+        ordering = ['name']
+
+    @property
+    def is_ready(self):
+        if self.directory_type == 'manual':
+            return True
+        return bool(self.server_uri and self.base_dn and self.bind_username and self.sync_enabled)
+
+    def __str__(self):
+        return self.name
+
+
+class DirectoryGroup(models.Model):
+    """AD/LDAP grup snapshot ve uygulama/erişim eşlemesi."""
+    RISK_CHOICES = (
+        ('low', 'Düşük'),
+        ('medium', 'Orta'),
+        ('high', 'Yüksek'),
+        ('critical', 'Kritik'),
+    )
+
+    connection = models.ForeignKey(DirectoryConnection, on_delete=models.CASCADE, related_name='groups', verbose_name="Directory")
+    name = models.CharField(max_length=180, db_index=True, verbose_name="Grup Adı")
+    distinguished_name = models.CharField(max_length=500, blank=True, verbose_name="DN")
+    description = models.TextField(blank=True, verbose_name="Açıklama")
+    mapped_role = models.CharField(max_length=120, blank=True, verbose_name="OmniOps Rolü")
+    mapped_system = models.CharField(max_length=150, blank=True, verbose_name="İş Uygulaması / Sistem")
+    risk_level = models.CharField(max_length=20, choices=RISK_CHOICES, default='medium', db_index=True, verbose_name="Risk")
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='owned_directory_groups', verbose_name="Sahip")
+    last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Görülme")
+    is_privileged = models.BooleanField(default=False, db_index=True, verbose_name="Ayrıcalıklı Grup")
+
+    class Meta:
+        verbose_name = "Directory Grubu"
+        verbose_name_plural = "Directory Grupları"
+        unique_together = ('connection', 'name')
+        ordering = ['-is_privileged', 'risk_level', 'name']
+
+    def __str__(self):
+        return self.name
+
+
+class DirectoryUser(models.Model):
+    """AD/LDAP kullanıcı snapshot kaydı."""
+    STATUS_CHOICES = (
+        ('active', 'Aktif'),
+        ('disabled', 'Pasif'),
+        ('locked', 'Kilitli'),
+        ('expired', 'Süresi Doldu'),
+        ('unknown', 'Bilinmiyor'),
+    )
+
+    connection = models.ForeignKey(DirectoryConnection, on_delete=models.CASCADE, related_name='users', verbose_name="Directory")
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='directory_snapshots', verbose_name="OmniOps Kullanıcısı")
+    username = models.CharField(max_length=150, db_index=True, verbose_name="Kullanıcı Adı")
+    display_name = models.CharField(max_length=180, blank=True, verbose_name="Ad Soyad")
+    email = models.EmailField(blank=True, verbose_name="E-posta")
+    department = models.CharField(max_length=120, blank=True, db_index=True, verbose_name="Departman")
+    title = models.CharField(max_length=120, blank=True, verbose_name="Unvan")
+    manager = models.CharField(max_length=180, blank=True, verbose_name="Yönetici")
+    distinguished_name = models.CharField(max_length=500, blank=True, verbose_name="DN")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unknown', db_index=True, verbose_name="Durum")
+    groups = models.ManyToManyField(DirectoryGroup, blank=True, related_name='members', verbose_name="Gruplar")
+    mfa_enabled = models.BooleanField(default=False, verbose_name="MFA")
+    password_last_set_at = models.DateTimeField(null=True, blank=True, verbose_name="Parola Son Değişim")
+    last_login_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Oturum")
+    last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Sync Görülme")
+    risk_note = models.TextField(blank=True, verbose_name="Risk Notu")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Directory Kullanıcısı"
+        verbose_name_plural = "Directory Kullanıcıları"
+        unique_together = ('connection', 'username')
+        ordering = ['status', 'department', 'username']
+
+    @property
+    def is_stale(self):
+        if not self.last_seen_at:
+            return True
+        return self.last_seen_at < timezone.now() - timedelta(days=30)
+
+    @property
+    def needs_attention(self):
+        return self.status in ('disabled', 'locked', 'expired') or self.is_stale or not self.mfa_enabled
+
+    def __str__(self):
+        return self.display_name or self.username
+
+
+class EndpointDevice(models.Model):
+    """PC/laptop/terminal gibi kullanıcı uç noktalarının uyum ve zimmet takibi."""
+    DEVICE_TYPE_CHOICES = (
+        ('desktop', 'Masaüstü'),
+        ('laptop', 'Laptop'),
+        ('mobile', 'Mobil'),
+        ('tablet', 'Tablet'),
+        ('thin_client', 'Thin Client'),
+        ('industrial_pc', 'Endüstriyel PC'),
+        ('other', 'Diğer'),
+    )
+    STATUS_CHOICES = (
+        ('compliant', 'Uyumlu'),
+        ('attention', 'Dikkat'),
+        ('non_compliant', 'Uyumsuz'),
+        ('lost', 'Kayıp'),
+        ('retired', 'Emekli'),
+    )
+
+    hostname = models.CharField(max_length=150, db_index=True, verbose_name="Hostname")
+    asset = models.ForeignKey(ITAsset, on_delete=models.SET_NULL, null=True, blank=True, related_name='endpoint_records', verbose_name="Varlık")
+    assigned_user = models.ForeignKey(DirectoryUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='endpoints', verbose_name="Directory Kullanıcısı")
+    assigned_to_text = models.CharField(max_length=180, blank=True, verbose_name="Zimmetli")
+    device_type = models.CharField(max_length=30, choices=DEVICE_TYPE_CHOICES, default='laptop', db_index=True, verbose_name="Tip")
+    serial_number = models.CharField(max_length=120, blank=True, db_index=True, verbose_name="Seri No")
+    os_name = models.CharField(max_length=150, blank=True, verbose_name="İşletim Sistemi")
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP")
+    factory_area = models.ForeignKey(FactoryArea, on_delete=models.SET_NULL, null=True, blank=True, related_name='endpoints', verbose_name="Alan")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='attention', db_index=True, verbose_name="Uyum Durumu")
+    antivirus_ok = models.BooleanField(default=False, verbose_name="Antivirüs OK")
+    disk_encrypted = models.BooleanField(default=False, verbose_name="Disk Şifreli")
+    patch_level = models.CharField(max_length=120, blank=True, verbose_name="Patch Seviyesi")
+    last_seen_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Görülme")
+    notes = models.TextField(blank=True, verbose_name="Notlar")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Uç Nokta Cihazı"
+        verbose_name_plural = "Uç Nokta Cihazları"
+        ordering = ['status', 'hostname']
+
+    @property
+    def is_compliant(self):
+        return self.status == 'compliant' and self.antivirus_ok and self.disk_encrypted
+
+    @property
+    def is_stale(self):
+        if not self.last_seen_at:
+            return True
+        return self.last_seen_at < timezone.now() - timedelta(days=14)
+
+    def __str__(self):
+        return self.hostname
+
+
+class IdentityLifecycleTask(models.Model):
+    """Onboarding/offboarding/transfer kimlik ve uç nokta checklist işi."""
+    PROCESS_CHOICES = (
+        ('onboarding', 'İşe Başlama'),
+        ('offboarding', 'İşten Çıkış'),
+        ('transfer', 'Departman Transferi'),
+        ('access_review', 'Erişim Gözden Geçirme'),
+    )
+    STATUS_CHOICES = (
+        ('open', 'Açık'),
+        ('waiting_approval', 'Onay Bekliyor'),
+        ('in_progress', 'Devam Ediyor'),
+        ('blocked', 'Blokaj'),
+        ('done', 'Tamamlandı'),
+        ('cancelled', 'İptal'),
+    )
+
+    title = models.CharField(max_length=180, verbose_name="Başlık")
+    process_type = models.CharField(max_length=30, choices=PROCESS_CHOICES, default='onboarding', db_index=True, verbose_name="Süreç")
+    directory_user = models.ForeignKey(DirectoryUser, on_delete=models.SET_NULL, null=True, blank=True, related_name='lifecycle_tasks', verbose_name="Directory Kullanıcısı")
+    employee_name = models.CharField(max_length=150, verbose_name="Personel")
+    department = models.CharField(max_length=120, blank=True, verbose_name="Departman")
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='identity_lifecycle_requests', verbose_name="Talep Eden")
+    assigned_to = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='identity_lifecycle_tasks', verbose_name="Sorumlu IT")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='open', db_index=True, verbose_name="Durum")
+    due_date = models.DateField(null=True, blank=True, verbose_name="Hedef Tarih")
+    ad_account_done = models.BooleanField(default=False, verbose_name="AD Hesabı")
+    mailbox_done = models.BooleanField(default=False, verbose_name="E-posta")
+    groups_done = models.BooleanField(default=False, verbose_name="Grup/Erişim")
+    endpoint_done = models.BooleanField(default=False, verbose_name="Cihaz/Zimmet")
+    vpn_done = models.BooleanField(default=False, verbose_name="VPN/MFA")
+    notes = models.TextField(blank=True, verbose_name="Notlar")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Kimlik Yaşam Döngüsü İşi"
+        verbose_name_plural = "Kimlik Yaşam Döngüsü İşleri"
+        ordering = ['status', 'due_date', '-created_at']
+
+    @property
+    def completion_percent(self):
+        checks = [self.ad_account_done, self.mailbox_done, self.groups_done, self.endpoint_done, self.vpn_done]
+        return int((sum(1 for item in checks if item) / len(checks)) * 100)
+
+    @property
+    def is_overdue(self):
+        return self.status not in ('done', 'cancelled') and self.due_date and self.due_date < timezone.now().date()
+
+    def __str__(self):
+        return self.title
+
+
+# ==========================================
+# --- FABRİKA BT KOMUTA MERKEZİ ---
+# ==========================================
+class FactoryDepartment(models.Model):
+    """Fabrika departmanları: üretim, kalite, depo, bakım, idari, güvenlik, IT, IK."""
+    DEPARTMENT_TYPE_CHOICES = (
+        ('production', 'Üretim'),
+        ('quality', 'Kalite'),
+        ('warehouse', 'Depo'),
+        ('maintenance', 'Bakım'),
+        ('administration', 'İdari İşler'),
+        ('security', 'Güvenlik'),
+        ('it', 'Bilgi İşlem'),
+        ('hr', 'İnsan Kaynakları'),
+        ('logistics', 'Lojistik'),
+        ('other', 'Diğer'),
+    )
+    CRITICALITY_CHOICES = (
+        ('low', 'Düşük'),
+        ('medium', 'Orta'),
+        ('high', 'Yüksek'),
+        ('critical', 'Kritik'),
+    )
+
+    name = models.CharField(max_length=120, verbose_name="Departman Adı")
+    code = models.CharField(max_length=40, unique=True, verbose_name="Kod")
+    department_type = models.CharField(max_length=30, choices=DEPARTMENT_TYPE_CHOICES, default='other', db_index=True, verbose_name="Tip")
+    description = models.TextField(blank=True, verbose_name="Açıklama")
+    criticality = models.CharField(max_length=20, choices=CRITICALITY_CHOICES, default='medium', db_index=True, verbose_name="Kritiklik")
+    manager_name = models.CharField(max_length=120, blank=True, verbose_name="Sorumlu")
+    contact_phone = models.CharField(max_length=30, blank=True, verbose_name="Telefon")
+    floor_label = models.CharField(max_length=60, blank=True, verbose_name="Kat/Bölge")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Aktif")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Fabrika Departmanı"
+        verbose_name_plural = "Fabrika Departmanları"
+        ordering = ['department_type', 'name']
+
+    @property
+    def zone_count(self):
+        return self.zones.filter(is_active=True).count()
+
+    def __str__(self):
+        return self.name
+
+
+class FactoryZone(models.Model):
+    """Hat, oda, sistem odası, kamera bölgesi, depo, ofis, güvenlik noktası."""
+    ZONE_TYPE_CHOICES = (
+        ('production_line', 'Üretim Hattı'),
+        ('room', 'Oda'),
+        ('server_room', 'Sistem Odası'),
+        ('camera_zone', 'Kamera Bölgesi'),
+        ('warehouse', 'Depo'),
+        ('office', 'Ofis'),
+        ('security_post', 'Güvenlik Noktası'),
+        ('meeting', 'Toplantı'),
+        ('other', 'Diğer'),
+    )
+    CRITICALITY_CHOICES = FactoryDepartment.CRITICALITY_CHOICES
+
+    department = models.ForeignKey(FactoryDepartment, on_delete=models.CASCADE, related_name='zones', verbose_name="Departman")
+    factory_area = models.ForeignKey(FactoryArea, on_delete=models.SET_NULL, null=True, blank=True, related_name='factory_zones', verbose_name="Fabrika Alanı")
+    name = models.CharField(max_length=120, verbose_name="Alan Adı")
+    code = models.CharField(max_length=40, verbose_name="Kod")
+    zone_type = models.CharField(max_length=30, choices=ZONE_TYPE_CHOICES, default='other', db_index=True, verbose_name="Alan Tipi")
+    floor = models.CharField(max_length=40, blank=True, verbose_name="Kat")
+    building = models.CharField(max_length=80, blank=True, verbose_name="Bina")
+    capacity = models.PositiveIntegerField(null=True, blank=True, verbose_name="Kapasite")
+    criticality = models.CharField(max_length=20, choices=CRITICALITY_CHOICES, default='medium', db_index=True, verbose_name="Kritiklik")
+    description = models.TextField(blank=True, verbose_name="Açıklama")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Aktif")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Fabrika Alt Alanı"
+        verbose_name_plural = "Fabrika Alt Alanları"
+        ordering = ['department__name', 'name']
+        unique_together = [('department', 'code')]
+
+    def __str__(self):
+        return f"{self.department.name} / {self.name}"
+
+
+class ManagedDocument(models.Model):
+    """DOCX/PDF/XLSX gibi kurumsal dokümanların metadata ve dosya kaydı."""
+    CATEGORY_CHOICES = (
+        ('procedure', 'Prosedür/SOP'),
+        ('policy', 'Politika'),
+        ('contract', 'Sözleşme'),
+        ('manual', 'Kullanım Kılavuzu'),
+        ('report', 'Rapor'),
+        ('checklist', 'Checklist'),
+        ('other', 'Diğer'),
+    )
+    FILE_TYPE_CHOICES = (
+        ('pdf', 'PDF'),
+        ('docx', 'Word (DOCX)'),
+        ('xlsx', 'Excel (XLSX)'),
+        ('pptx', 'PowerPoint'),
+        ('other', 'Diğer'),
+    )
+    STATUS_CHOICES = (
+        ('draft', 'Taslak'),
+        ('review', 'İncelemede'),
+        ('approved', 'Onaylı'),
+        ('archived', 'Arşiv'),
+    )
+
+    title = models.CharField(max_length=200, verbose_name="Başlık")
+    reference_code = models.CharField(max_length=60, blank=True, db_index=True, verbose_name="Referans Kodu")
+    category = models.CharField(max_length=30, choices=CATEGORY_CHOICES, default='other', db_index=True, verbose_name="Kategori")
+    file_type = models.CharField(max_length=20, choices=FILE_TYPE_CHOICES, default='other', db_index=True, verbose_name="Dosya Tipi")
+    file = models.FileField(upload_to='managed_documents/%Y/%m/', blank=True, null=True, verbose_name="Dosya")
+    file_size = models.PositiveIntegerField(default=0, verbose_name="Boyut (byte)")
+    department = models.ForeignKey(FactoryDepartment, on_delete=models.SET_NULL, null=True, blank=True, related_name='documents', verbose_name="Departman")
+    zone = models.ForeignKey(FactoryZone, on_delete=models.SET_NULL, null=True, blank=True, related_name='documents', verbose_name="Alan")
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='managed_documents', verbose_name="Sahip")
+    version = models.CharField(max_length=20, default='1.0', verbose_name="Versiyon")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True, verbose_name="Durum")
+    description = models.TextField(blank=True, verbose_name="Açıklama")
+    tags = models.CharField(max_length=250, blank=True, verbose_name="Etiketler")
+    preview_enabled = models.BooleanField(default=True, verbose_name="Önizleme Açık")
+    external_editor_url = models.URLField(max_length=500, blank=True, verbose_name="Harici Editör URL")
+    valid_until = models.DateField(null=True, blank=True, verbose_name="Geçerlilik Tarihi")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Yönetilen Doküman"
+        verbose_name_plural = "Yönetilen Dokümanlar"
+        ordering = ['-updated_at', 'title']
+
+    @property
+    def is_pdf(self):
+        return self.file_type == 'pdf'
+
+    @property
+    def can_browser_preview(self):
+        return self.preview_enabled and self.is_pdf and bool(self.file)
+
+    @property
+    def is_expired(self):
+        return bool(self.valid_until and self.valid_until < timezone.now().date())
+
+    @property
+    def needs_review(self):
+        return self.status in ('draft', 'review') or self.is_expired
+
+    @property
+    def can_office_edit(self):
+        """OnlyOffice ile tarayıcıda düzenlenebilir dosya tipleri (DOCX, XLSX, PPTX)."""
+        return bool(self.file) and self.file_type in ('docx', 'xlsx', 'pptx')
+
+    def save(self, *args, **kwargs):
+        if self.file:
+            try:
+                self.file_size = self.file.size
+            except Exception:
+                pass
+            if self.file_type == 'other':
+                ext = (self.file.name.rsplit('.', 1)[-1] if self.file.name else '').lower()
+                ext_map = {'pdf': 'pdf', 'docx': 'docx', 'doc': 'docx', 'xlsx': 'xlsx', 'xls': 'xlsx', 'pptx': 'pptx'}
+                self.file_type = ext_map.get(ext, 'other')
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.title
+
+
+class FactoryITAssetRelation(models.Model):
+    """Departman/alan ile kamera, switch, endpoint, yazıcı, ticket, doküman vb. ilişkisi."""
+    ASSET_TYPE_CHOICES = (
+        ('device', 'Ağ Cihazı'),
+        ('camera', 'Kamera/NVR'),
+        ('endpoint', 'Endpoint'),
+        ('printer', 'Yazıcı'),
+        ('application', 'Uygulama'),
+        ('ticket', 'Ticket'),
+        ('document', 'Doküman'),
+        ('maintenance', 'Bakım İşi'),
+        ('consumable', 'Sarf Stok'),
+        ('asset', 'IT Varlık'),
+    )
+    ROLE_CHOICES = (
+        ('primary', 'Birincil'),
+        ('secondary', 'İkincil'),
+        ('monitored', 'İzlenen'),
+        ('backup', 'Yedek'),
+    )
+
+    department = models.ForeignKey(FactoryDepartment, on_delete=models.CASCADE, null=True, blank=True, related_name='asset_relations', verbose_name="Departman")
+    zone = models.ForeignKey(FactoryZone, on_delete=models.CASCADE, null=True, blank=True, related_name='asset_relations', verbose_name="Alan")
+    asset_type = models.CharField(max_length=20, choices=ASSET_TYPE_CHOICES, default='device', db_index=True, verbose_name="Varlık Tipi")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='primary', db_index=True, verbose_name="Rol")
+    label = models.CharField(max_length=180, blank=True, verbose_name="Etiket")
+    notes = models.TextField(blank=True, verbose_name="Notlar")
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Ağ Cihazı")
+    camera = models.ForeignKey(CameraDevice, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Kamera")
+    endpoint = models.ForeignKey(EndpointDevice, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Endpoint")
+    printer = models.ForeignKey(PrinterFleetItem, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Yazıcı")
+    application = models.ForeignKey(BusinessApplication, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Uygulama")
+    ticket = models.ForeignKey(Ticket, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Ticket")
+    document = models.ForeignKey(ManagedDocument, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Doküman")
+    maintenance_task = models.ForeignKey(MaintenanceTask, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Bakım İşi")
+    consumable = models.ForeignKey(ConsumableItem, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="Sarf Stok")
+    it_asset = models.ForeignKey(ITAsset, on_delete=models.CASCADE, null=True, blank=True, related_name='factory_relations', verbose_name="IT Varlık")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Fabrika IT Varlık İlişkisi"
+        verbose_name_plural = "Fabrika IT Varlık İlişkileri"
+        ordering = ['asset_type', '-updated_at']
+
+    @property
+    def display_name(self):
+        if self.label:
+            return self.label
+        for obj in (
+            self.device, self.camera, self.endpoint, self.printer,
+            self.application, self.ticket, self.document, self.maintenance_task,
+            self.consumable, self.it_asset,
+        ):
+            if obj is not None:
+                return str(obj)
+        return self.get_asset_type_display()
+
+    def __str__(self):
+        scope = self.zone or self.department
+        return f"{scope} · {self.display_name}"
+
+
+# ==========================================
+# --- QR/BARKOD VARLIK ETİKETİ ---
+# ==========================================
+class AssetQRTag(models.Model):
+    """Fabrika varlıkları için QR/barkod etiket kaydı ve hızlı çözümleme."""
+    TAG_TYPE_CHOICES = (
+        ('device', 'Ağ Cihazı'),
+        ('endpoint', 'Endpoint'),
+        ('it_asset', 'IT Varlık'),
+        ('camera', 'Kamera'),
+        ('printer', 'Yazıcı'),
+        ('factory_zone', 'Fabrika Alanı'),
+        ('consumable', 'Sarf Stok'),
+    )
+
+    code = models.CharField(max_length=80, unique=True, db_index=True, verbose_name="QR/Barkod Kodu")
+    tag_type = models.CharField(max_length=20, choices=TAG_TYPE_CHOICES, default='it_asset', db_index=True, verbose_name="Etiket Tipi")
+    label = models.CharField(max_length=180, blank=True, verbose_name="Etiket Adı")
+    location = models.CharField(max_length=150, blank=True, verbose_name="Fiziksel Konum")
+    device = models.ForeignKey(Device, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Ağ Cihazı")
+    endpoint = models.ForeignKey(EndpointDevice, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Endpoint")
+    it_asset = models.ForeignKey(ITAsset, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="IT Varlık")
+    camera = models.ForeignKey(CameraDevice, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Kamera")
+    printer = models.ForeignKey(PrinterFleetItem, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Yazıcı")
+    factory_zone = models.ForeignKey(FactoryZone, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Fabrika Alanı")
+    consumable = models.ForeignKey(ConsumableItem, on_delete=models.CASCADE, null=True, blank=True, related_name='qr_tags', verbose_name="Sarf Stok")
+    is_active = models.BooleanField(default=True, db_index=True, verbose_name="Aktif")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Oluşturulma")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "Varlık QR Etiketi"
+        verbose_name_plural = "Varlık QR Etiketleri"
+        ordering = ['code']
+
+    @property
+    def display_name(self):
+        if self.label:
+            return self.label
+        for obj in (self.device, self.endpoint, self.it_asset, self.camera, self.printer, self.factory_zone, self.consumable):
+            if obj is not None:
+                return str(obj)
+        return self.code
+
+    @property
+    def resolved_url(self):
+        if self.device_id:
+            return '/topoloji/'
+        if self.endpoint_id:
+            return '/kimlik-operasyonlari/'
+        if self.it_asset_id:
+            return '/it-envanter/'
+        if self.camera_id:
+            return '/komuta-merkezi/'
+        if self.printer_id:
+            return '/servis-surecleri/'
+        if self.factory_zone_id and self.factory_zone.department_id:
+            return f'/fabrika-komuta-merkezi/?department={self.factory_zone.department_id}&zone={self.factory_zone_id}'
+        if self.consumable_id:
+            return '/fabrika-operasyonlari/'
+        return '/varlik-qr-tara/'
+
+    def __str__(self):
+        return f"{self.code} · {self.display_name}"
+
+
+# ==========================================
+# --- ODOO / ERP CONNECTOR ---
+# ==========================================
+class ERPConnection(models.Model):
+    """Odoo ve diğer ERP sistemleri için bağlantı ve senkronizasyon kaydı."""
+    ERP_TYPE_CHOICES = (
+        ('odoo', 'Odoo'),
+        ('erpnext', 'ERPNext'),
+        ('sap', 'SAP'),
+        ('other', 'Diğer ERP'),
+    )
+    SYNC_STATUS_CHOICES = (
+        ('never', 'Hiç Senkronize Edilmedi'),
+        ('healthy', 'Sağlıklı'),
+        ('warning', 'Uyarı'),
+        ('error', 'Hata'),
+    )
+
+    name = models.CharField(max_length=150, verbose_name="Bağlantı Adı")
+    erp_type = models.CharField(max_length=20, choices=ERP_TYPE_CHOICES, default='odoo', db_index=True, verbose_name="ERP Tipi")
+    base_url = models.URLField(max_length=500, verbose_name="Sunucu URL")
+    database_name = models.CharField(max_length=120, verbose_name="Veritabanı")
+    username = models.CharField(max_length=120, verbose_name="Kullanıcı")
+    api_key = models.CharField(max_length=255, blank=True, verbose_name="API Key / Parola")
+    sync_enabled = models.BooleanField(default=True, verbose_name="Senkronizasyon Aktif")
+    sync_partners = models.BooleanField(default=True, verbose_name="Cari/Partner Sync")
+    sync_products = models.BooleanField(default=False, verbose_name="Ürün/Stok Sync")
+    sync_helpdesk = models.BooleanField(default=False, verbose_name="Helpdesk/Ticket Sync")
+    last_sync_at = models.DateTimeField(null=True, blank=True, verbose_name="Son Sync")
+    last_sync_status = models.CharField(max_length=20, choices=SYNC_STATUS_CHOICES, default='never', db_index=True, verbose_name="Sync Durumu")
+    last_sync_message = models.TextField(blank=True, verbose_name="Son Sync Mesajı")
+    records_synced = models.PositiveIntegerField(default=0, verbose_name="Son Sync Kayıt Sayısı")
+    owner = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='erp_connections', verbose_name="Sorumlu")
+    notes = models.TextField(blank=True, verbose_name="Notlar")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Güncelleme")
+
+    class Meta:
+        verbose_name = "ERP Bağlantısı"
+        verbose_name_plural = "ERP Bağlantıları"
+        ordering = ['erp_type', 'name']
+
+    @property
+    def is_ready(self):
+        return bool(self.base_url and self.database_name and self.username and self.api_key and self.sync_enabled)
+
+    @property
+    def is_unhealthy(self):
+        return self.last_sync_status in ('warning', 'error')
+
+    def __str__(self):
+        return self.name
+
+
 # ==========================================
 # --- YENİ: AIOps Tahminleyici Bakım Modeli ---
 # ==========================================

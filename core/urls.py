@@ -34,7 +34,10 @@ from inventory.enterprise_views import (
     dlp_events_view, optimize_field_route, topology_png_export,
     service_worker_js, health_check, factory_operations_view, it_operations_view,
     service_operations_view, command_center_view, governance_center_view,
-    setup_center_view, readiness_api,
+    setup_center_view, readiness_api, identity_operations_view,
+    factory_command_center_view, managed_document_download, managed_document_preview,
+    managed_document_editor, managed_document_editor_callback,
+    asset_qr_scanner_view, qr_lookup_api, erp_integrations_view,
 )
 
 # API Router ve api_views içe aktarmaları
@@ -96,6 +99,17 @@ router.register(r'service-dependencies', api_views.ServiceDependencyViewSet, bas
 router.register(r'integration-health-checks', api_views.IntegrationHealthCheckViewSet, basename='integration-health-check')
 router.register(r'compliance-controls', api_views.ComplianceControlViewSet, basename='compliance-control')
 router.register(r'document-output-jobs', api_views.DocumentOutputJobViewSet, basename='document-output-job')
+router.register(r'directory-connections', api_views.DirectoryConnectionViewSet, basename='directory-connection')
+router.register(r'directory-groups', api_views.DirectoryGroupViewSet, basename='directory-group')
+router.register(r'directory-users', api_views.DirectoryUserViewSet, basename='directory-user')
+router.register(r'endpoint-devices', api_views.EndpointDeviceViewSet, basename='endpoint-device')
+router.register(r'identity-lifecycle-tasks', api_views.IdentityLifecycleTaskViewSet, basename='identity-lifecycle-task')
+router.register(r'factory-departments', api_views.FactoryDepartmentViewSet, basename='factory-department')
+router.register(r'factory-zones', api_views.FactoryZoneViewSet, basename='factory-zone')
+router.register(r'managed-documents', api_views.ManagedDocumentViewSet, basename='managed-document')
+router.register(r'factory-asset-relations', api_views.FactoryITAssetRelationViewSet, basename='factory-asset-relation')
+router.register(r'asset-qr-tags', api_views.AssetQRTagViewSet, basename='asset-qr-tag')
+router.register(r'erp-connections', api_views.ERPConnectionViewSet, basename='erp-connection')
 
 urlpatterns = [
     path('health/', health_check, name='health_check'),
@@ -156,6 +170,15 @@ urlpatterns = [
     path('servis-surecleri/', service_operations_view, name='service_operations'),
     path('komuta-merkezi/', command_center_view, name='command_center'),
     path('yonetisim-merkezi/', governance_center_view, name='governance_center'),
+    path('kimlik-operasyonlari/', identity_operations_view, name='identity_operations'),
+    path('fabrika-komuta-merkezi/', factory_command_center_view, name='factory_command_center'),
+    path('dokuman/<int:pk>/indir/', managed_document_download, name='managed_document_download'),
+    path('dokuman/<int:pk>/onizleme/', managed_document_preview, name='managed_document_preview'),
+    path('dokuman/<int:pk>/duzenle/', managed_document_editor, name='managed_document_editor'),
+    path('dokuman/<int:pk>/editor-callback/', managed_document_editor_callback, name='managed_document_editor_callback'),
+    path('varlik-qr-tara/', asset_qr_scanner_view, name='asset_qr_scanner'),
+    path('api/qr-lookup/', qr_lookup_api, name='qr_lookup_api'),
+    path('erp-entegrasyonlari/', erp_integrations_view, name='erp_integrations'),
     path('kurulum-merkezi/', setup_center_view, name='setup_center'),
     path('offline-saha/', offline_field_app, name='offline_field_app'),
     path('service-worker.js', service_worker_js, name='service_worker_js'),

@@ -14,6 +14,10 @@ from .models import (
     ReportTemplate,
     ChangeCalendarEvent, ServiceDependency, IntegrationHealthCheck,
     ComplianceControl, DocumentOutputJob,
+    DirectoryConnection, DirectoryGroup, DirectoryUser, EndpointDevice,
+    IdentityLifecycleTask,
+    FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
+    AssetQRTag, ERPConnection,
 )
 from .helpdesk import is_support_staff
 
@@ -546,6 +550,211 @@ class DocumentOutputJobSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = ['requested_by', 'created_at', 'updated_at']
+
+
+class DirectoryConnectionSerializer(serializers.ModelSerializer):
+    is_ready = serializers.BooleanField(read_only=True)
+    owner_name = serializers.CharField(source='owner.username', read_only=True)
+
+    class Meta:
+        model = DirectoryConnection
+        fields = [
+            'id', 'name', 'directory_type', 'server_uri', 'base_dn',
+            'bind_username', 'user_filter', 'group_filter', 'sync_enabled',
+            'last_sync_at', 'last_sync_status', 'last_sync_message',
+            'owner', 'owner_name', 'is_ready', 'updated_at',
+        ]
+        read_only_fields = ['last_sync_at', 'last_sync_status', 'last_sync_message', 'is_ready', 'updated_at']
+
+
+class DirectoryGroupSerializer(serializers.ModelSerializer):
+    connection_name = serializers.CharField(source='connection.name', read_only=True)
+    member_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = DirectoryGroup
+        fields = [
+            'id', 'connection', 'connection_name', 'name', 'distinguished_name',
+            'description', 'mapped_role', 'mapped_system', 'risk_level',
+            'owner', 'last_seen_at', 'is_privileged', 'member_count',
+        ]
+        read_only_fields = ['last_seen_at', 'member_count']
+
+
+class DirectoryUserSerializer(serializers.ModelSerializer):
+    connection_name = serializers.CharField(source='connection.name', read_only=True)
+    group_names = serializers.SlugRelatedField(source='groups', many=True, read_only=True, slug_field='name')
+    is_stale = serializers.BooleanField(read_only=True)
+    needs_attention = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = DirectoryUser
+        fields = [
+            'id', 'connection', 'connection_name', 'user', 'username',
+            'display_name', 'email', 'department', 'title', 'manager',
+            'distinguished_name', 'status', 'groups', 'group_names',
+            'mfa_enabled', 'password_last_set_at', 'last_login_at',
+            'last_seen_at', 'is_stale', 'needs_attention', 'risk_note',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'is_stale', 'needs_attention']
+
+
+class EndpointDeviceSerializer(serializers.ModelSerializer):
+    assigned_username = serializers.CharField(source='assigned_user.username', read_only=True)
+    is_compliant = serializers.BooleanField(read_only=True)
+    is_stale = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = EndpointDevice
+        fields = [
+            'id', 'hostname', 'asset', 'assigned_user', 'assigned_username',
+            'assigned_to_text', 'device_type', 'serial_number', 'os_name',
+            'ip_address', 'factory_area', 'status', 'antivirus_ok',
+            'disk_encrypted', 'patch_level', 'last_seen_at', 'is_compliant',
+            'is_stale', 'notes', 'updated_at',
+        ]
+        read_only_fields = ['is_compliant', 'is_stale', 'updated_at']
+
+
+class IdentityLifecycleTaskSerializer(serializers.ModelSerializer):
+    completion_percent = serializers.IntegerField(read_only=True)
+    is_overdue = serializers.BooleanField(read_only=True)
+    assigned_to_name = serializers.CharField(source='assigned_to.username', read_only=True)
+    requested_by_name = serializers.CharField(source='requested_by.username', read_only=True)
+
+    class Meta:
+        model = IdentityLifecycleTask
+        fields = [
+            'id', 'title', 'process_type', 'directory_user', 'employee_name',
+            'department', 'requested_by', 'requested_by_name', 'assigned_to',
+            'assigned_to_name', 'status', 'due_date', 'ad_account_done',
+            'mailbox_done', 'groups_done', 'endpoint_done', 'vpn_done',
+            'completion_percent', 'is_overdue', 'notes', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['requested_by', 'completion_percent', 'is_overdue', 'created_at', 'updated_at']
+
+
+class FactoryDepartmentSerializer(serializers.ModelSerializer):
+    zone_count = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = FactoryDepartment
+        fields = [
+            'id', 'name', 'code', 'department_type', 'description', 'criticality',
+            'manager_name', 'contact_phone', 'floor_label', 'is_active',
+            'zone_count', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at', 'zone_count']
+
+
+class FactoryZoneSerializer(serializers.ModelSerializer):
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    factory_area_name = serializers.CharField(source='factory_area.name', read_only=True)
+
+    class Meta:
+        model = FactoryZone
+        fields = [
+            'id', 'department', 'department_name', 'factory_area', 'factory_area_name',
+            'name', 'code', 'zone_type', 'floor', 'building', 'capacity',
+            'criticality', 'description', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class ManagedDocumentSerializer(serializers.ModelSerializer):
+    owner_name = serializers.CharField(source='owner.username', read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    zone_name = serializers.CharField(source='zone.name', read_only=True)
+    is_pdf = serializers.BooleanField(read_only=True)
+    can_browser_preview = serializers.BooleanField(read_only=True)
+    is_expired = serializers.BooleanField(read_only=True)
+    needs_review = serializers.BooleanField(read_only=True)
+    download_url = serializers.SerializerMethodField()
+    preview_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ManagedDocument
+        fields = [
+            'id', 'title', 'reference_code', 'category', 'file_type', 'file',
+            'file_size', 'department', 'department_name', 'zone', 'zone_name',
+            'owner', 'owner_name', 'version', 'status', 'description', 'tags',
+            'preview_enabled', 'external_editor_url', 'valid_until',
+            'is_pdf', 'can_browser_preview', 'is_expired', 'needs_review',
+            'download_url', 'preview_url', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'owner', 'file_size', 'is_pdf', 'can_browser_preview',
+            'is_expired', 'needs_review', 'download_url', 'preview_url',
+            'created_at', 'updated_at',
+        ]
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_download_url(self, obj):
+        request = self.context.get('request')
+        if not obj.file:
+            return None
+        path = f'/dokuman/{obj.pk}/indir/'
+        return request.build_absolute_uri(path) if request else path
+
+    @extend_schema_field(OpenApiTypes.URI)
+    def get_preview_url(self, obj):
+        if not obj.can_browser_preview:
+            return None
+        request = self.context.get('request')
+        path = f'/dokuman/{obj.pk}/onizleme/'
+        return request.build_absolute_uri(path) if request else path
+
+
+class FactoryITAssetRelationSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    zone_name = serializers.CharField(source='zone.name', read_only=True)
+
+    class Meta:
+        model = FactoryITAssetRelation
+        fields = [
+            'id', 'department', 'department_name', 'zone', 'zone_name',
+            'asset_type', 'role', 'label', 'notes', 'display_name',
+            'device', 'camera', 'endpoint', 'printer', 'application',
+            'ticket', 'document', 'maintenance_task', 'consumable', 'it_asset',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['display_name', 'created_at', 'updated_at']
+
+
+class AssetQRTagSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
+    resolved_url = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = AssetQRTag
+        fields = [
+            'id', 'code', 'tag_type', 'label', 'location', 'display_name', 'resolved_url',
+            'device', 'endpoint', 'it_asset', 'camera', 'printer', 'factory_zone',
+            'consumable', 'is_active', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['display_name', 'resolved_url', 'created_at', 'updated_at']
+
+
+class ERPConnectionSerializer(serializers.ModelSerializer):
+    is_ready = serializers.BooleanField(read_only=True)
+    is_unhealthy = serializers.BooleanField(read_only=True)
+    owner_name = serializers.CharField(source='owner.username', read_only=True)
+
+    class Meta:
+        model = ERPConnection
+        fields = [
+            'id', 'name', 'erp_type', 'base_url', 'database_name', 'username', 'api_key',
+            'sync_enabled', 'sync_partners', 'sync_products', 'sync_helpdesk',
+            'last_sync_at', 'last_sync_status', 'last_sync_message', 'records_synced',
+            'owner', 'owner_name', 'is_ready', 'is_unhealthy', 'notes', 'updated_at',
+        ]
+        read_only_fields = [
+            'last_sync_at', 'last_sync_status', 'last_sync_message', 'records_synced',
+            'is_ready', 'is_unhealthy', 'updated_at',
+        ]
+        extra_kwargs = {'api_key': {'write_only': True}}
 
 
 class DevicePerformanceLogSerializer(serializers.ModelSerializer):

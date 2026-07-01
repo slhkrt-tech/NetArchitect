@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}ERP & Entegrasyon Merkezi - OmniOps{% endblock %}
+
+{% block content %}
+<section class="suite-hero mb-4">
+    <div>
+        <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+        <h1 class="suite-title">ERP & Entegrasyon Merkezi</h1>
+        <p class="suite-subtitle">Odoo bağlantıları, senkronizasyon, kamera sağlık taraması ve entegrasyon durumu.</p>
+    </div>
+    <form method="post" class="d-inline">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="poll_cameras">
+        <button class="btn btn-info"><span class="iconify me-1" data-icon="mdi:cctv"></span> Kamera Health Poll</button>
+    </form>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">ERP Bağlantı</div><div class="display-6 fw-bold">{{ metrics.connections }}</div></div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Sağlıklı Sync</div><div class="display-6 fw-bold text-success">{{ metrics.healthy }}</div></div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Sync Hatası</div><div class="display-6 fw-bold text-danger">{{ metrics.errors }}</div></div></div></div>
+    <div class="col-md-3"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Kamera Online</div><div class="display-6 fw-bold text-primary">{{ camera_summary.online }}</div></div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-4">
+        <div class="card glass-card">
+            <div class="card-header bg-transparent fw-bold">Odoo / ERP Bağlantısı Ekle</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="connection">
+                    {{ form.as_p }}
+                    <button class="btn btn-primary w-100">Bağlantıyı Kaydet</button>
+                </form>
+            </div>
+        </div>
+        <div class="card glass-card mt-4">
+            <div class="card-header bg-transparent fw-bold">Kamera Durum Özeti</div>
+            <div class="card-body small">
+                <div class="d-flex justify-content-between mb-2"><span>Online</span><span class="badge bg-success">{{ camera_summary.online }}</span></div>
+                <div class="d-flex justify-content-between mb-2"><span>Uyarı</span><span class="badge bg-warning">{{ camera_summary.warning }}</span></div>
+                <div class="d-flex justify-content-between mb-2"><span>Offline</span><span class="badge bg-danger">{{ camera_summary.offline }}</span></div>
+                <div class="d-flex justify-content-between"><span>Bakımda</span><span class="badge bg-secondary">{{ camera_summary.maintenance }}</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card glass-card">
+            <div class="card-header bg-transparent fw-bold">ERP Bağlantıları</div>
+            <div class="card-body">
+                {% for connection in connections %}
+                <div class="border rounded-3 p-3 mb-3">
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div>
+                            <div class="fw-bold">{{ connection.name }}</div>
+                            <div class="small text-muted">{{ connection.get_erp_type_display }} · {{ connection.base_url }}</div>
+                            <div class="small mt-1">{{ connection.last_sync_message|default:"Henüz sync yapılmadı" }}</div>
+                        </div>
+                        <span class="badge {% if connection.last_sync_status == 'healthy' %}bg-success{% elif connection.last_sync_status == 'error' %}bg-danger{% else %}bg-warning{% endif %}">{{ connection.get_last_sync_status_display }}</span>
+                    </div>
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="test_connection"><input type="hidden" name="connection_id" value="{{ connection.id }}"><button class="btn btn-sm btn-outline-primary">Test</button></form>
+                        <form method="post">{% csrf_token %}<input type="hidden" name="action" value="sync_connection"><input type="hidden" name="connection_id" value="{{ connection.id }}"><button class="btn btn-sm btn-success">Sync</button></form>
+                    </div>
+                </div>
+                {% empty %}
+                <div class="text-muted">Odoo/ERP bağlantısı yok. Sol panelden ilk bağlantıyı ekleyin.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

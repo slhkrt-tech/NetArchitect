@@ -11,7 +11,42 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     initCommandPalette();
+    initSidebarGroups();
 });
+
+function initSidebarGroups() {
+    const groups = document.querySelectorAll('.sidebar-group');
+    if (!groups.length || typeof bootstrap === 'undefined') return;
+
+    const activeLink = document.querySelector('.sidebar .nav-link.active');
+    if (activeLink) {
+        const parentCollapse = activeLink.closest('.collapse');
+        if (parentCollapse) {
+            bootstrap.Collapse.getOrCreateInstance(parentCollapse, { toggle: false }).show();
+            const toggle = document.querySelector(`[data-bs-target="#${parentCollapse.id}"]`);
+            if (toggle) toggle.setAttribute('aria-expanded', 'true');
+        }
+    }
+
+    groups.forEach(group => {
+        const collapseEl = group.querySelector('.collapse');
+        const toggle = group.querySelector('.sidebar-group-toggle');
+        if (!collapseEl || !toggle) return;
+
+        const storageKey = `omniops_sidebar_${group.dataset.sidebarGroup || collapseEl.id}`;
+        const saved = localStorage.getItem(storageKey);
+        if (saved === 'open') {
+            bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).show();
+            toggle.setAttribute('aria-expanded', 'true');
+        } else if (saved === 'closed') {
+            bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }).hide();
+            toggle.setAttribute('aria-expanded', 'false');
+        }
+
+        collapseEl.addEventListener('shown.bs.collapse', () => localStorage.setItem(storageKey, 'open'));
+        collapseEl.addEventListener('hidden.bs.collapse', () => localStorage.setItem(storageKey, 'closed'));
+    });
+}
 
 function initCommandPalette() {
     const modalEl = document.getElementById('commandPaletteModal');

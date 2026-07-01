@@ -40,7 +40,8 @@ from .tasks import active_response_block_ip
 from .models import (
     Device, Ticket, IpAddress, SystemLog, DeviceBackup, ITAsset, License, Port,
     KnowledgeBaseArticle, VendorContract, ChangeRequest, ServiceCatalogItem,
-    TicketCategory, NetworkScan, NetworkScanHost,
+    TicketCategory, NetworkScan, NetworkScanHost, DirectoryConnection,
+    DirectoryUser, EndpointDevice, IdentityLifecycleTask,
 )
 
 from .forms import (
@@ -73,8 +74,12 @@ def global_search_api(request):
 
     quick_actions = [
         {'type': 'Aksiyon', 'title': 'Yeni Ticket Aç', 'subtitle': 'Servis masası ve sistem biletleri', 'url': '/panel/', 'icon': 'mdi:ticket-plus-outline'},
+        {'type': 'Aksiyon', 'title': 'Fabrika BT Komuta Merkezi', 'subtitle': 'Departman kartelası, modüller ve doküman merkezi', 'url': '/fabrika-komuta-merkezi/', 'icon': 'mdi:factory'},
+        {'type': 'Aksiyon', 'title': 'QR/Barkod Tarayıcı', 'subtitle': 'Etiket okut, varlığa anında git', 'url': '/varlik-qr-tara/', 'icon': 'mdi:qrcode-scan'},
+        {'type': 'Aksiyon', 'title': 'ERP & Entegrasyon', 'subtitle': 'Odoo bağlantıları ve kamera health poll', 'url': '/erp-entegrasyonlari/', 'icon': 'mdi:connection'},
         {'type': 'Aksiyon', 'title': 'Komuta Merkezi', 'subtitle': 'VPN, chat, kamera ve uygulama portalı', 'url': '/komuta-merkezi/', 'icon': 'mdi:view-dashboard-edit-outline'},
         {'type': 'Aksiyon', 'title': 'Yönetişim Merkezi', 'subtitle': 'Takvim, CMDB, denetim ve çıktılar', 'url': '/yonetisim-merkezi/', 'icon': 'mdi:calendar-check-outline'},
+        {'type': 'Aksiyon', 'title': 'Kimlik & Uç Nokta Merkezi', 'subtitle': 'AD, LDAP, endpoint, MFA ve lifecycle', 'url': '/kimlik-operasyonlari/', 'icon': 'mdi:account-key-outline'},
         {'type': 'Aksiyon', 'title': 'Kurulum & Sağlık Merkezi', 'subtitle': 'Canlıya alma, readiness ve ilk kurulum kontrolleri', 'url': '/kurulum-merkezi/', 'icon': 'mdi:progress-wrench'},
         {'type': 'Aksiyon', 'title': 'Derin Ağ Keşfi', 'subtitle': 'Ping, ARP ve raw socket tarama', 'url': '/ag-tarayici/', 'icon': 'mdi:radar'},
         {'type': 'Aksiyon', 'title': 'Raporlama Merkezi', 'subtitle': 'PDF ve CSV çıktıları', 'url': '/raporlar/', 'icon': 'mdi:file-chart-outline'},
@@ -135,6 +140,42 @@ def global_search_api(request):
 
         for report in ReportTemplate.objects.filter(title__icontains=query).order_by('title')[:limit]:
             add_result('Rapor', report.title, f"{report.get_report_type_display()} · {report.output_format}", '/komuta-merkezi/', 'mdi:file-chart-outline')
+
+        for directory_user in DirectoryUser.objects.filter(
+            models.Q(username__icontains=query) |
+            models.Q(display_name__icontains=query) |
+            models.Q(email__icontains=query) |
+            models.Q(department__icontains=query)
+        ).order_by('username')[:limit]:
+            add_result('Directory Kullanıcısı', directory_user.display_name or directory_user.username, f"{directory_user.department or 'Departman yok'} · {directory_user.get_status_display()}", '/kimlik-operasyonlari/', 'mdi:account-key-outline')
+
+        for endpoint in EndpointDevice.objects.filter(
+            models.Q(hostname__icontains=query) |
+            models.Q(serial_number__icontains=query) |
+            models.Q(assigned_to_text__icontains=query)
+        ).order_by('hostname')[:limit]:
+            add_result('Endpoint', endpoint.hostname, f"{endpoint.get_device_type_display()} · {endpoint.get_status_display()}", '/kimlik-operasyonlari/', 'mdi:laptop')
+
+        from .models import FactoryDepartment, ManagedDocument
+
+        for department in FactoryDepartment.objects.filter(
+            models.Q(name__icontains=query) | models.Q(code__icontains=query) | models.Q(manager_name__icontains=query)
+        ).order_by('name')[:limit]:
+            add_result('Fabrika Departmanı', department.name, f"{department.get_department_type_display()} · {department.code}", f'/fabrika-komuta-merkezi/?department={department.id}', 'mdi:office-building-outline')
+
+        for document in ManagedDocument.objects.filter(
+            models.Q(title__icontains=query) |
+            models.Q(reference_code__icontains=query) |
+            models.Q(description__icontains=query) |
+            models.Q(tags__icontains=query)
+        ).order_by('-updated_at')[:limit]:
+            add_result('Doküman', document.title, f"{document.get_category_display()} · {document.get_file_type_display()}", f'/fabrika-komuta-merkezi/?document={document.id}', 'mdi:file-document-outline')
+
+        from .models import AssetQRTag
+        for tag in AssetQRTag.objects.filter(
+            models.Q(code__icontains=query) | models.Q(label__icontains=query) | models.Q(location__icontains=query)
+        ).order_by('code')[:limit]:
+            add_result('QR Etiket', tag.display_name, f"{tag.get_tag_type_display()} · {tag.code}", tag.resolved_url, 'mdi:qrcode-scan')
 
     return JsonResponse({'results': results[:30]})
 
@@ -659,18 +700,18 @@ def port_mapping_list_view(request):
 @login_required
 @role_required(['Sistem Ekibi', 'Yönetim'])
 def sync_ad_users(request):
-    if getattr(settings, 'LDAP_ENABLED', False):
-        try:
-            from django_auth_ldap.backend import LDAPBackend
-            LDAPBackend().populate_user('admin')
-            SystemLog.objects.create(user=request.user, action='SYSTEM', details="Active Directory senkronizasyonu başarıyla tamamlandı.")
-            messages.success(request, 'Active Directory kullanıcıları başarıyla senkronize edildi.')
-        except Exception as e:
-            messages.error(request, f'LDAP Sunucusuna bağlanılamadı: {str(e)}')
+    from .enterprise_views import run_directory_sync
+
+    connection = DirectoryConnection.objects.filter(sync_enabled=True).order_by('name').first()
+    if not connection:
+        connection = DirectoryConnection.objects.order_by('name').first()
+
+    ok, message = run_directory_sync(connection, actor=request.user)
+    if ok:
+        messages.success(request, message)
     else:
-        SystemLog.objects.create(user=request.user, action='SYSTEM', details='AD senkronizasyonu çağrıldı ancak LDAP özelliği devre dışı. Placeholder çalıştı.')
-        messages.warning(request, 'Sistem Uyarısı: Kurumsal Active Directory (LDAP/AD) entegrasyonu V2 sürümünde aktif edilecektir. Şu an lokal kimlik doğrulama kullanılıyor.')
-        
+        SystemLog.objects.create(user=request.user, action='SYSTEM', details=f'Directory sync tamamlanamadı: {message}')
+        messages.warning(request, message)
     return redirect('custom_admin')
 
 @login_required
@@ -1086,6 +1127,8 @@ def build_executive_report_context():
         DocumentOutputJob, EmployeeITProcess, FactoryArea, IntegrationHealthCheck,
         MajorIncident, PrinterFleetItem, ProcurementRequest, RemoteAccessGrant,
         Runbook, ServiceDependency, VendorSupportCase,
+        DirectoryGroup, DirectoryUser, EndpointDevice, IdentityLifecycleTask,
+        FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
     )
 
     now = timezone.now()
@@ -1102,6 +1145,10 @@ def build_executive_report_context():
     critical_incident_count = MajorIncident.objects.exclude(status='resolved').count()
     security_events_count = DLPEvent.objects.count()
     compliance_open_count = ComplianceControl.objects.exclude(status='compliant').count()
+    directory_attention_count = sum(1 for user in DirectoryUser.objects.all() if user.needs_attention)
+    endpoint_alert_count = sum(1 for endpoint in EndpointDevice.objects.all() if not endpoint.is_compliant or endpoint.is_stale)
+    open_identity_tasks = IdentityLifecycleTask.objects.exclude(status__in=['done', 'cancelled']).count()
+    review_documents_count = sum(1 for doc in ManagedDocument.objects.all() if doc.needs_review)
 
     risk_score = min(
         100,
@@ -1110,7 +1157,10 @@ def build_executive_report_context():
         + (unhealthy_backup_count * 12)
         + (security_events_count * 4)
         + (compliance_open_count * 8)
-        + (unhealthy_integrations * 10),
+        + (unhealthy_integrations * 10)
+        + (directory_attention_count * 3)
+        + (endpoint_alert_count * 4)
+        + (review_documents_count * 2),
     )
 
     readiness = 100
@@ -1122,6 +1172,10 @@ def build_executive_report_context():
         readiness -= 12
     if compliance_open_count:
         readiness -= min(18, compliance_open_count * 4)
+    if directory_attention_count:
+        readiness -= min(12, directory_attention_count * 2)
+    if endpoint_alert_count:
+        readiness -= min(14, endpoint_alert_count * 3)
     readiness = max(0, readiness)
 
     kpis = [
@@ -1156,6 +1210,8 @@ def build_executive_report_context():
             'title': 'Fabrika Operasyonları',
             'icon': 'mdi:factory',
             'metrics': [
+                ('Fabrika departmanı', FactoryDepartment.objects.filter(is_active=True).count()),
+                ('Alt alan', FactoryZone.objects.filter(is_active=True).count()),
                 ('Fabrika alanı', FactoryArea.objects.count()),
                 ('Düşük stok', low_stock_count),
                 ('Personel süreci', EmployeeITProcess.objects.exclude(status='closed').count()),
@@ -1192,6 +1248,26 @@ def build_executive_report_context():
                 ('Entegrasyon alarmı', unhealthy_integrations),
             ],
         },
+        {
+            'title': 'Kimlik ve Uç Nokta',
+            'icon': 'mdi:account-key-outline',
+            'metrics': [
+                ('Directory kullanıcı', DirectoryUser.objects.count()),
+                ('Dikkat kullanıcı', directory_attention_count),
+                ('Endpoint alarm', endpoint_alert_count),
+                ('Açık lifecycle', open_identity_tasks),
+            ],
+        },
+        {
+            'title': 'Doküman ve Kartela',
+            'icon': 'mdi:file-document-outline',
+            'metrics': [
+                ('Yönetilen doküman', ManagedDocument.objects.count()),
+                ('İnceleme bekleyen', review_documents_count),
+                ('Onaylı doküman', ManagedDocument.objects.filter(status='approved').count()),
+                ('Varlık ilişkisi', FactoryITAssetRelation.objects.count()),
+            ],
+        },
     ]
 
     alerts = [
@@ -1200,6 +1276,8 @@ def build_executive_report_context():
         {'title': 'Düşük stok kalemleri', 'value': low_stock_count, 'tone': 'warning', 'action': 'Fabrika IT Operasyonları'},
         {'title': 'Uyumsuz kontroller', 'value': compliance_open_count, 'tone': 'danger', 'action': 'Yönetişim Merkezi'},
         {'title': 'Entegrasyon alarmları', 'value': unhealthy_integrations, 'tone': 'warning', 'action': 'Yönetişim Merkezi'},
+        {'title': 'Kimlik ve endpoint riskleri', 'value': directory_attention_count + endpoint_alert_count, 'tone': 'warning', 'action': 'Kimlik & Uç Nokta Merkezi'},
+        {'title': 'İnceleme bekleyen dokümanlar', 'value': review_documents_count, 'tone': 'warning', 'action': 'Fabrika BT Komuta Merkezi'},
     ]
 
     return {

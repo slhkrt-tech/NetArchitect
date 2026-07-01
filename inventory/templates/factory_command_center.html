@@ -1,0 +1,232 @@
+{% extends 'base.html' %}
+
+{% block title %}Fabrika BT Komuta Merkezi - OmniOps{% endblock %}
+
+{% block content %}
+<section class="suite-hero mb-4">
+    <div>
+        <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+        <h1 class="suite-title">Fabrika BT Komuta Merkezi</h1>
+        <p class="suite-subtitle">Departman kartelasından bölüm seçin; kameralar, switchler, endpointler, ticketlar ve dokümanlar aynı ekranda açılsın.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        <a href="{% url 'factory_command_center' %}" class="btn btn-outline-secondary">
+            <span class="iconify me-1" data-icon="mdi:view-grid-outline"></span> Kartela Görünümü
+        </a>
+        {% if selected_department %}
+        <a href="{% url 'factory_command_center' %}?department={{ selected_department.id }}" class="btn btn-primary">
+            <span class="iconify me-1" data-icon="mdi:factory"></span> {{ selected_department.name }}
+        </a>
+        {% endif %}
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Departman</div><div class="display-6 fw-bold">{{ metrics.departments }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Alt Alan</div><div class="display-6 fw-bold text-primary">{{ metrics.zones }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Doküman</div><div class="display-6 fw-bold">{{ metrics.documents }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Varlık İlişkisi</div><div class="display-6 fw-bold">{{ metrics.relations }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">İnceleme Bekleyen</div><div class="display-6 fw-bold text-warning">{{ metrics.review_documents }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Kapsam Riski</div><div class="display-6 fw-bold text-danger">{{ metrics.risk_items }}</div></div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-4">
+        <div class="accordion" id="factoryForms">
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#departmentForm">Departman Kartela Kaydı</button></h2>
+                <div id="departmentForm" class="accordion-collapse collapse show" data-bs-parent="#factoryForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="department">{{ forms.department.as_p }}<button class="btn btn-primary w-100">Departman Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#zoneForm">Alt Alan / Sistem Odası</button></h2>
+                <div id="zoneForm" class="accordion-collapse collapse" data-bs-parent="#factoryForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="zone">{{ forms.zone.as_p }}<button class="btn btn-info w-100">Alan Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#documentForm">Doküman Yükle</button></h2>
+                <div id="documentForm" class="accordion-collapse collapse" data-bs-parent="#factoryForms"><div class="accordion-body">
+                    <form method="post" enctype="multipart/form-data">{% csrf_token %}<input type="hidden" name="action" value="document">{{ forms.document.as_p }}<button class="btn btn-success w-100">Doküman Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#relationForm">Varlık İlişkisi</button></h2>
+                <div id="relationForm" class="accordion-collapse collapse" data-bs-parent="#factoryForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="relation">{{ forms.relation.as_p }}<button class="btn btn-secondary w-100">İlişki Kaydet</button></form>
+                </div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        <div class="card glass-card mb-4">
+            <div class="card-header bg-transparent fw-bold d-flex justify-content-between align-items-center">
+                <span>Departman Kartelası</span>
+                <span class="text-muted small">Bölüm seçince modüller açılır</span>
+            </div>
+            <div class="card-body">
+                <div class="factory-card-grid">
+                    {% for department in departments %}
+                    <a href="{% url 'factory_command_center' %}?department={{ department.id }}" class="factory-dept-card {% if selected_department and selected_department.id == department.id %}is-active{% endif %}">
+                        <span class="factory-dept-icon"><span class="iconify" data-icon="mdi:office-building-outline"></span></span>
+                        <span class="factory-dept-copy">
+                            <span class="factory-dept-title">{{ department.name }}</span>
+                            <span class="factory-dept-meta">{{ department.get_department_type_display }} · {{ department.get_criticality_display }}</span>
+                            <span class="factory-dept-meta">{{ department.zone_total }} alan · {{ department.code }}</span>
+                        </span>
+                        <span class="iconify factory-dept-arrow" data-icon="mdi:chevron-right"></span>
+                    </a>
+                    {% empty %}
+                    <div class="text-muted">Henüz departman kartela kaydı yok. Sol panelden ilk departmanı ekleyin.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        {% if selected_department %}
+        <div class="card glass-card mb-4">
+            <div class="card-header bg-transparent fw-bold">
+                {{ selected_department.name }} · Alt Alanlar
+                {% if selected_zone %}<span class="badge bg-primary ms-2">{{ selected_zone.name }}</span>{% endif %}
+            </div>
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <a href="{% url 'factory_command_center' %}?department={{ selected_department.id }}" class="btn btn-sm {% if not selected_zone %}btn-primary{% else %}btn-outline-primary{% endif %}">Tüm Departman</a>
+                    {% for zone in zones %}
+                    <a href="{% url 'factory_command_center' %}?department={{ selected_department.id }}&zone={{ zone.id }}" class="btn btn-sm {% if selected_zone and selected_zone.id == zone.id %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        {{ zone.name }} · {{ zone.get_zone_type_display }}
+                    </a>
+                    {% empty %}
+                    <span class="text-muted small">Bu departman için alt alan tanımlanmadı.</span>
+                    {% endfor %}
+                </div>
+
+                <div class="row g-3">
+                    {% for module in scope.modules %}
+                    {% if module.count %}
+                    <div class="col-md-6 col-xl-4">
+                        <div class="suite-section-card h-100">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="iconify fs-4 text-primary" data-icon="{{ module.icon }}"></span>
+                                <span class="badge bg-primary-subtle text-primary">{{ module.count }}</span>
+                            </div>
+                            <h3 class="h6 fw-bold mb-2">{{ module.title }}</h3>
+                            <ul class="list-unstyled small mb-3">
+                                {% for item in module.items %}
+                                <li class="mb-1 text-truncate">{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                            <a href="{{ module.url }}" class="small text-decoration-none">Modüle git →</a>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row g-4" id="documents-panel">
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Doküman Merkezi</div>
+                    <div class="card-body">
+                        {% for document in scope.documents %}
+                        <div class="document-card mb-2">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <a href="{% url 'factory_command_center' %}?document={{ document.id }}{% if selected_department %}&department={{ selected_department.id }}{% endif %}" class="fw-semibold text-decoration-none">{{ document.title }}</a>
+                                    <div class="small text-muted">{{ document.get_category_display }} · {{ document.get_file_type_display }} · v{{ document.version }}</div>
+                                </div>
+                                <span class="badge {% if document.status == 'approved' %}bg-success-subtle text-success{% else %}bg-warning-subtle text-warning{% endif %}">{{ document.get_status_display }}</span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                {% if document.file %}
+                                <a href="{% url 'managed_document_download' document.id %}" class="btn btn-sm btn-outline-primary">İndir</a>
+                                {% if document.can_browser_preview %}
+                                <a href="{% url 'managed_document_preview' document.id %}" target="_blank" class="btn btn-sm btn-outline-info">PDF Önizle</a>
+                                {% endif %}
+                                {% if document.can_office_edit %}
+                                <a href="{% url 'managed_document_editor' document.id %}" class="btn btn-sm btn-warning">Düzenle</a>
+                                {% endif %}
+                                {% if document.external_editor_url %}
+                                <a href="{{ document.external_editor_url }}" target="_blank" class="btn btn-sm btn-outline-secondary">Harici Editör</a>
+                                {% endif %}
+                                {% else %}
+                                <span class="small text-muted">Dosya bekleniyor</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted">Seçili kapsamda doküman yok. DOCX/PDF/XLSX dosyalarını sol panelden yükleyin.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                {% if selected_document %}
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Doküman Detayı</div>
+                    <div class="card-body">
+                        <h2 class="h5 fw-bold">{{ selected_document.title }}</h2>
+                        <p class="text-muted small mb-3">{{ selected_document.reference_code|default:"Referans yok" }} · {{ selected_document.get_status_display }}</p>
+                        <p>{{ selected_document.description|default:"Açıklama girilmemiş." }}</p>
+                        <ul class="list-unstyled small">
+                            <li><strong>Kategori:</strong> {{ selected_document.get_category_display }}</li>
+                            <li><strong>Tip:</strong> {{ selected_document.get_file_type_display }}</li>
+                            <li><strong>Departman:</strong> {{ selected_document.department|default:"-" }}</li>
+                            <li><strong>Alan:</strong> {{ selected_document.zone|default:"-" }}</li>
+                            <li><strong>Etiketler:</strong> {{ selected_document.tags|default:"-" }}</li>
+                            <li><strong>Geçerlilik:</strong> {{ selected_document.valid_until|default:"Süresiz" }}</li>
+                        </ul>
+                        <div class="d-flex flex-wrap gap-2 mt-3">
+                            {% if selected_document.file %}
+                            <a href="{% url 'managed_document_download' selected_document.id %}" class="btn btn-primary btn-sm">Dosyayı İndir / Aç</a>
+                            {% if selected_document.can_browser_preview %}
+                            <a href="{% url 'managed_document_preview' selected_document.id %}" target="_blank" class="btn btn-info btn-sm">Tarayıcıda PDF Önizle</a>
+                            {% if selected_document.can_office_edit %}
+                            <a href="{% url 'managed_document_editor' selected_document.id %}" class="btn btn-warning btn-sm">Tarayıcıda Düzenle</a>
+                            {% elif selected_document.file_type == 'docx' %}
+                            <span class="badge bg-light text-dark px-3 py-2">DOCX için OnlyOffice/Collabora entegrasyon alanı hazır</span>
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                            {% if selected_document.status != 'approved' %}
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="approve_document">
+                                <input type="hidden" name="document_id" value="{{ selected_document.id }}">
+                                <button class="btn btn-success btn-sm">Onayla</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                        {% if selected_document.can_browser_preview %}
+                        <div class="document-preview-frame mt-3">
+                            <iframe src="{% url 'managed_document_preview' selected_document.id %}" title="{{ selected_document.title }}"></iframe>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Varlık İlişkileri</div>
+                    <div class="card-body">
+                        {% for relation in scope.relations %}
+                        <div class="border rounded-3 p-3 mb-2">
+                            <div class="fw-semibold">{{ relation.display_name }}</div>
+                            <div class="small text-muted">{{ relation.get_asset_type_display }} · {{ relation.get_role_display }}{% if relation.zone %} · {{ relation.zone.name }}{% elif relation.department %} · {{ relation.department.name }}{% endif %}</div>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted">Seçili kapsamda varlık ilişkisi yok. Sol panelden switch, kamera, endpoint veya doküman bağlayın.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -18,6 +18,7 @@ Sistem; servis masası, ağ keşfi, cihaz yedekleme, IPAM, kamera/NVR takibi, VP
 - Ağ ve altyapı: derin ağ tarama, topoloji, IPAM, rack görünümü, port haritaları, cihaz konfigürasyon üretimi, yedekleme ve diff.
 - IT envanter: varlık, lisans, tedarikçi sözleşmesi, bakım ve zimmet süreçleri.
 - Fabrika operasyonları: fabrika alanları, sarf/stok takibi, periyodik bakım, onboarding/offboarding/transfer.
+- **Fabrika BT Komuta Merkezi**: departman kartelası, alt alan/sistem odası yapısı, bölüm seçince açılan modül kartları (kamera, switch, endpoint, ticket, doküman), PDF önizleme ve güvenli indirme.
 - IT operasyon merkezi: satın alma, nöbet vardiyası, backup job izleme, vendor support case ve asset handover.
 - Servis süreç merkezi: major incident, access request, printer fleet ve runbook/SOP yönetimi.
 - Komuta merkezi: VPN/uzaktan erişim, departman kanalları, kamera/NVR cihazları, iş uygulamaları ve rapor şablonları.
@@ -127,7 +128,46 @@ python manage.py omniops_doctor --json
 python manage.py omniops_doctor --bootstrap
 ```
 
-`--bootstrap` varsayılan roller, destek ekipleri, kategoriler ve temel izinleri hazırlar.
+`--bootstrap` varsayılan roller, destek ekipleri, kategoriler, temel izinler ve fabrika departman kartelasını hazırlar.
+
+## Fabrika BT Komuta Merkezi
+
+Departman kartelası, alt alanlar ve doküman merkezi:
+
+```text
+/fabrika-komuta-merkezi/
+```
+
+Özellikler:
+
+- Departman kartelası (üretim, kalite, BT, depo, güvenlik vb.)
+- Alt alan / sistem odası / kamera bölgesi tanımları
+- Bölüm seçilince kameralar, ağ cihazları, endpointler, ticketlar ve doküman modülleri
+- PDF tarayıcı önizlemesi: `/dokuman/<id>/onizleme/`
+- Güvenli indirme: `/dokuman/<id>/indir/`
+- DOCX için harici editör URL alanı (OnlyOffice/Collabora entegrasyonuna hazır)
+
+İlk kartela verisi:
+
+```bash
+python manage.py omniops_doctor --bootstrap
+```
+
+Sidebar navigasyonu açılır gruplar halindedir: Komuta, Fabrika Envanteri, Ağ ve Sistem, Kimlik ve Kullanıcı, Servis Masası, Güvenlik ve Yönetişim, Rapor ve Doküman, Yönetim.
+
+### Gelişmiş Entegrasyonlar (Paket 2)
+
+- **OnlyOffice / Collabora**: DOCX/XLSX tarayıcı editörü (`/dokuman/<id>/duzenle/`)
+- **QR/Barkod tarayıcı**: Kamera veya manuel kod ile varlık çözümleme (`/varlik-qr-tara/`)
+- **Kamera/NVR health polling**: Celery ile 10 dakikada bir otomatik durum kontrolü
+- **Odoo ERP connector**: XML-RPC test/sync (`/erp-entegrasyonlari/`)
+
+OnlyOffice örneği:
+
+```env
+ONLYOFFICE_DOCUMENT_SERVER_URL=https://onlyoffice.example.com
+ONLYOFFICE_JWT_SECRET=your-jwt-secret
+```
 
 ## Yönetici Raporları
 

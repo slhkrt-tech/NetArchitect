@@ -527,6 +527,105 @@ def active_response_block_ip(attacker_ip, device_id):
 
 
 # ========================================================
+# --- KAMERA / NVR HEALTH POLLING ---
+# ========================================================
+@shared_task(name='inventory.tasks.poll_camera_health_task')
+def poll_camera_health_task():
+    """Celery Beat: kamera/NVR cihazlarının TCP ve HTTP erişilebilirliğini periyodik kontrol eder."""
+    from .models import CameraDevice, SystemLog
+    from .integrations.camera_health import poll_camera_devices
+
+    summary, stale_count = poll_camera_devices(CameraDevice.objects.all())
+    message = (
+        f"Kamera sağlık taraması: çevrimiçi={summary.get('online', 0)}, "
+        f"uyarı={summary.get('warning', 0)}, çevrimdışı={summary.get('offline', 0)}, "
+        f"eski_kayıt={stale_count}"
+    )
+    SystemLog.objects.create(action='SYSTEM', details=message)
+    return message
+
+
+# ========================================================
+# --- ODOO / ERP CONNECTOR SYNC ---
+# ========================================================
+@shared_task(name='inventory.tasks.sync_erp_connection_task')
+def sync_erp_connection_task(connection_id):
+    """Tek bir ERP bağlantısı için senkronizasyon görevini çalıştırır."""
+    from .models import ERPConnection, SystemLog
+    from .integrations.odoo_client import OdooClientError, sync_erp_connection
+
+    connection = ERPConnection.objects.filter(pk=connection_id).first()
+    if not connection or not connection.sync_enabled:
+        return 'ERP bağlantısı bulunamadı veya sync kapalı.'
+
+    try:
+        count, message = sync_erp_connection(connection)
+        connection.last_sync_at = timezone.now()
+        connection.last_sync_status = 'healthy'
+        connection.last_sync_message = message
+        connection.records_synced = count
+        connection.save(update_fields=[
+            'last_sync_at', 'last_sync_status', 'last_sync_message', 'records_synced', 'updated_at',
+        ])
+        SystemLog.objects.create(action='SYSTEM', details=f'ERP sync OK · {connection.name}: {message}')
+        return message
+    except OdooClientError as exc:
+        connection.last_sync_status = 'error'
+        connection.last_sync_message = str(exc)
+        connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+        SystemLog.objects.create(action='SYSTEM', details=f'ERP sync hata · {connection.name}: {exc}')
+        return str(exc)
+
+
+@shared_task(name='inventory.tasks.sync_all_erp_connections_task')
+def sync_all_erp_connections_task():
+    """Aktif tüm ERP bağlantıları için senkronizasyon işlerini kuyruğa alır."""
+    from .models import ERPConnection
+
+    queued = 0
+    for connection in ERPConnection.objects.filter(sync_enabled=True):
+        sync_erp_connection_task.delay(connection.id)
+        queued += 1
+    return f'{queued} ERP sync işi kuyruğa alındı.'
+
+
+@shared_task(name='inventory.tasks.poll_integration_health_task')
+def poll_integration_health_task():
+    """Entegrasyon sağlık kayıtlarının uç noktalarına HTTP HEAD ile periyodik erişim testi yapar."""
+    import time
+    import urllib.error
+    import urllib.request
+    from .models import IntegrationHealthCheck, SystemLog
+
+    updated = 0
+    for check in IntegrationHealthCheck.objects.exclude(endpoint_url=''):
+        start = time.time()
+        status = 'down'
+        try:
+            request = urllib.request.Request(check.endpoint_url, method='HEAD')
+            with urllib.request.urlopen(request, timeout=5) as response:
+                elapsed = int((time.time() - start) * 1000)
+                check.response_time_ms = elapsed
+                status = 'healthy' if response.status < 400 else 'degraded'
+                # 2 saniyeden yavaş yanıtlar sorunlu kabul edilir
+                if elapsed > 2000:
+                    status = 'degraded'
+        except urllib.error.HTTPError as exc:
+            check.response_time_ms = int((time.time() - start) * 1000)
+            status = 'degraded' if exc.code < 500 else 'down'
+        except Exception:
+            check.response_time_ms = 0
+            status = 'down'
+        check.last_status = status
+        check.last_checked_at = timezone.now()
+        check.save(update_fields=['last_status', 'last_checked_at', 'response_time_ms', 'updated_at'])
+        updated += 1
+
+    SystemLog.objects.create(action='SYSTEM', details=f'Entegrasyon sağlık taraması tamamlandı. {updated} kayıt güncellendi.')
+    return f'{updated} entegrasyon kontrol edildi.'
+
+
+# ========================================================
 # --- BULK KONFİGÜRASYON (ASENKRON VE PARALEL YAPI) ---
 # ========================================================
 

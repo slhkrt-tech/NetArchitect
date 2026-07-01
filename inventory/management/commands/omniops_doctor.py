@@ -5,11 +5,14 @@ from django.core.management.base import BaseCommand
 from django.db import connection
 
 from inventory.helpdesk import ensure_default_categories, ensure_default_groups, ensure_default_permissions
+from inventory.factory_bootstrap import ensure_default_factory_structure, ensure_default_qr_tags
 from inventory.models import (
     BusinessApplication,
     Device,
     FactoryArea,
+    FactoryDepartment,
     ITAsset,
+    ManagedDocument,
     ReportTemplate,
     Runbook,
     Ticket,
@@ -29,6 +32,8 @@ class Command(BaseCommand):
             ensure_default_groups()
             ensure_default_categories()
             ensure_default_permissions()
+            ensure_default_factory_structure()
+            ensure_default_qr_tags()
 
         report = self._build_report(bootstrapped=options['bootstrap'])
 
@@ -65,6 +70,7 @@ class Command(BaseCommand):
             {'title': 'Ticket kategorileri hazır', 'ok': TicketCategory.objects.exists()},
             {'title': 'İlk cihaz/veri girilmiş', 'ok': Device.objects.exists() or ITAsset.objects.exists()},
             {'title': 'Operasyon modülleri kullanılmaya başlanmış', 'ok': FactoryArea.objects.exists() or BusinessApplication.objects.exists()},
+            {'title': 'Fabrika departman kartelası', 'ok': FactoryDepartment.objects.filter(is_active=True).exists()},
             {'title': 'Runbook veya rapor şablonu var', 'ok': Runbook.objects.exists() or ReportTemplate.objects.exists()},
             {'title': 'Ticket sistemi aktif', 'ok': Ticket.objects.exists() or TicketCategory.objects.exists()},
         ])

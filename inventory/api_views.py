@@ -8,7 +8,7 @@ from drf_spectacular.types import OpenApiTypes
 from django.contrib.auth.models import User
 from django.utils import timezone
 from django.conf import settings
-from django.db.models import Q
+from django.db.models import Q, Count
 from guardian.shortcuts import get_objects_for_user
 
 # Filtreleme, Arama ve Sıralama araçları
@@ -26,6 +26,10 @@ from .models import (
     BusinessApplication, ReportTemplate,
     ChangeCalendarEvent, ServiceDependency, IntegrationHealthCheck,
     ComplianceControl, DocumentOutputJob,
+    DirectoryConnection, DirectoryGroup, DirectoryUser, EndpointDevice,
+    IdentityLifecycleTask,
+    FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
+    AssetQRTag, ERPConnection,
 )
 from .serializers import (
     DeviceSerializer, IpAddressSerializer, TicketSerializer, UserSerializer, UserCreateSerializer,
@@ -42,6 +46,11 @@ from .serializers import (
     ChangeCalendarEventSerializer, ServiceDependencySerializer,
     IntegrationHealthCheckSerializer, ComplianceControlSerializer,
     DocumentOutputJobSerializer,
+    DirectoryConnectionSerializer, DirectoryGroupSerializer, DirectoryUserSerializer,
+    EndpointDeviceSerializer, IdentityLifecycleTaskSerializer,
+    FactoryDepartmentSerializer, FactoryZoneSerializer,
+    ManagedDocumentSerializer, FactoryITAssetRelationSerializer,
+    AssetQRTagSerializer, ERPConnectionSerializer,
 )
 from .permissions import IsSupportStaff, TicketObjectPermission, NotificationOwnerPermission
 from .helpdesk import is_support_staff, can_access_ticket, get_helpdesk_analytics
@@ -1002,6 +1011,226 @@ class ChangeRequestViewSet(viewsets.ModelViewSet):
             {'status': 'success', 'message': 'Bulk operation queued.', 'change_request': serializer.data},
             status=status.HTTP_201_CREATED
         )
+
+
+class DirectoryConnectionViewSet(viewsets.ModelViewSet):
+    queryset = DirectoryConnection.objects.select_related('owner').order_by('name')
+    serializer_class = DirectoryConnectionSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['directory_type', 'sync_enabled', 'last_sync_status']
+    search_fields = ['name', 'server_uri', 'base_dn']
+    ordering_fields = ['name', 'last_sync_at', 'last_sync_status']
+
+    @action(detail=True, methods=['post'], url_path='sync')
+    def sync(self, request, pk=None):
+        connection = self.get_object()
+        connection.last_sync_at = timezone.now()
+        if connection.is_ready:
+            connection.last_sync_status = 'healthy'
+            connection.last_sync_message = 'Sync isteği alındı. LDAP worker entegrasyonu için hazır.'
+        else:
+            connection.last_sync_status = 'warning'
+            connection.last_sync_message = 'Bağlantı bilgileri eksik veya sync kapalı.'
+        connection.save(update_fields=['last_sync_at', 'last_sync_status', 'last_sync_message', 'updated_at'])
+        SystemLog.objects.create(
+            user=request.user,
+            action='SYSTEM',
+            details=f"Directory sync tetiklendi: {connection.name} ({connection.last_sync_status})"
+        )
+        return Response(DirectoryConnectionSerializer(connection).data)
+
+
+class DirectoryGroupViewSet(viewsets.ModelViewSet):
+    serializer_class = DirectoryGroupSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['connection', 'risk_level', 'is_privileged', 'mapped_role']
+    search_fields = ['name', 'description', 'mapped_system', 'distinguished_name']
+    ordering_fields = ['name', 'risk_level', 'last_seen_at']
+
+    def get_queryset(self):
+        return DirectoryGroup.objects.select_related('connection', 'owner').annotate(member_count=Count('members')).order_by('-is_privileged', 'name')
+
+
+class DirectoryUserViewSet(viewsets.ModelViewSet):
+    queryset = DirectoryUser.objects.select_related('connection', 'user').prefetch_related('groups').order_by('status', 'username')
+    serializer_class = DirectoryUserSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['connection', 'status', 'department', 'mfa_enabled']
+    search_fields = ['username', 'display_name', 'email', 'department', 'title']
+    ordering_fields = ['username', 'department', 'last_login_at', 'last_seen_at']
+
+    @action(detail=True, methods=['post'], url_path='mark-reviewed')
+    def mark_reviewed(self, request, pk=None):
+        directory_user = self.get_object()
+        note = request.data.get('risk_note') or 'Erişim gözden geçirildi.'
+        directory_user.risk_note = note
+        directory_user.last_seen_at = timezone.now()
+        directory_user.save(update_fields=['risk_note', 'last_seen_at', 'updated_at'])
+        return Response(DirectoryUserSerializer(directory_user).data)
+
+
+class EndpointDeviceViewSet(viewsets.ModelViewSet):
+    queryset = EndpointDevice.objects.select_related('asset', 'assigned_user', 'factory_area').order_by('status', 'hostname')
+    serializer_class = EndpointDeviceSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['device_type', 'status', 'factory_area', 'antivirus_ok', 'disk_encrypted']
+    search_fields = ['hostname', 'serial_number', 'assigned_to_text', 'os_name', 'ip_address']
+    ordering_fields = ['hostname', 'status', 'last_seen_at', 'updated_at']
+
+    @action(detail=True, methods=['post'], url_path='mark-compliant')
+    def mark_compliant(self, request, pk=None):
+        endpoint = self.get_object()
+        endpoint.status = 'compliant'
+        endpoint.antivirus_ok = True
+        endpoint.disk_encrypted = True
+        endpoint.last_seen_at = timezone.now()
+        endpoint.save(update_fields=['status', 'antivirus_ok', 'disk_encrypted', 'last_seen_at', 'updated_at'])
+        return Response(EndpointDeviceSerializer(endpoint).data)
+
+
+class IdentityLifecycleTaskViewSet(viewsets.ModelViewSet):
+    queryset = IdentityLifecycleTask.objects.select_related('directory_user', 'requested_by', 'assigned_to').order_by('status', 'due_date')
+    serializer_class = IdentityLifecycleTaskSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['process_type', 'status', 'assigned_to', 'department']
+    search_fields = ['title', 'employee_name', 'department', 'notes']
+    ordering_fields = ['due_date', 'created_at', 'status']
+
+    def perform_create(self, serializer):
+        serializer.save(requested_by=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='mark-done')
+    def mark_done(self, request, pk=None):
+        task = self.get_object()
+        task.status = 'done'
+        task.ad_account_done = True
+        task.mailbox_done = True
+        task.groups_done = True
+        task.endpoint_done = True
+        task.vpn_done = True
+        task.save(update_fields=[
+            'status', 'ad_account_done', 'mailbox_done', 'groups_done',
+            'endpoint_done', 'vpn_done', 'updated_at',
+        ])
+        return Response(IdentityLifecycleTaskSerializer(task).data)
+
+
+class FactoryDepartmentViewSet(viewsets.ModelViewSet):
+    serializer_class = FactoryDepartmentSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['department_type', 'criticality', 'is_active']
+    search_fields = ['name', 'code', 'manager_name', 'floor_label']
+    ordering_fields = ['name', 'department_type', 'criticality', 'updated_at']
+
+    def get_queryset(self):
+        return FactoryDepartment.objects.annotate(zone_count=Count('zones')).order_by('department_type', 'name')
+
+
+class FactoryZoneViewSet(viewsets.ModelViewSet):
+    queryset = FactoryZone.objects.select_related('department', 'factory_area').order_by('department__name', 'name')
+    serializer_class = FactoryZoneSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['department', 'zone_type', 'criticality', 'is_active', 'factory_area']
+    search_fields = ['name', 'code', 'building', 'floor', 'description']
+    ordering_fields = ['name', 'zone_type', 'criticality', 'updated_at']
+
+
+class ManagedDocumentViewSet(viewsets.ModelViewSet):
+    queryset = ManagedDocument.objects.select_related('department', 'zone', 'owner').order_by('-updated_at')
+    serializer_class = ManagedDocumentSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['category', 'file_type', 'status', 'department', 'zone', 'preview_enabled']
+    search_fields = ['title', 'reference_code', 'description', 'tags']
+    ordering_fields = ['title', 'updated_at', 'valid_until', 'status']
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+    @action(detail=True, methods=['post'], url_path='approve')
+    def approve(self, request, pk=None):
+        document = self.get_object()
+        document.status = 'approved'
+        document.save(update_fields=['status', 'updated_at'])
+        return Response(ManagedDocumentSerializer(document, context={'request': request}).data)
+
+
+class FactoryITAssetRelationViewSet(viewsets.ModelViewSet):
+    queryset = FactoryITAssetRelation.objects.select_related(
+        'department', 'zone', 'device', 'camera', 'endpoint', 'printer',
+        'application', 'ticket', 'document', 'maintenance_task', 'consumable', 'it_asset',
+    ).order_by('asset_type', '-updated_at')
+    serializer_class = FactoryITAssetRelationSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['department', 'zone', 'asset_type', 'role']
+    search_fields = ['label', 'notes', 'department__name', 'zone__name']
+    ordering_fields = ['asset_type', 'role', 'updated_at']
+
+
+class AssetQRTagViewSet(viewsets.ModelViewSet):
+    queryset = AssetQRTag.objects.select_related(
+        'device', 'endpoint', 'it_asset', 'camera', 'printer', 'factory_zone', 'consumable',
+    ).order_by('code')
+    serializer_class = AssetQRTagSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['tag_type', 'is_active']
+    search_fields = ['code', 'label', 'location']
+    ordering_fields = ['code', 'tag_type', 'updated_at']
+
+
+class ERPConnectionViewSet(viewsets.ModelViewSet):
+    queryset = ERPConnection.objects.select_related('owner').order_by('erp_type', 'name')
+    serializer_class = ERPConnectionSerializer
+    permission_classes = [IsAuthenticated, IsSupportStaff]
+    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
+    filterset_fields = ['erp_type', 'sync_enabled', 'last_sync_status']
+    search_fields = ['name', 'base_url', 'database_name', 'username']
+    ordering_fields = ['name', 'last_sync_at', 'last_sync_status']
+
+    @action(detail=True, methods=['post'], url_path='test')
+    def test_connection(self, request, pk=None):
+        connection = self.get_object()
+        from .integrations.odoo_client import OdooClientError, test_erp_connection
+        try:
+            result = test_erp_connection(connection)
+            connection.last_sync_status = 'healthy'
+            connection.last_sync_message = f"Test OK · {result.get('server_version', '')}"
+            connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+            return Response({'status': 'ok', 'result': result})
+        except OdooClientError as exc:
+            connection.last_sync_status = 'error'
+            connection.last_sync_message = str(exc)
+            connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+            return Response({'status': 'error', 'detail': str(exc)}, status=400)
+
+    @action(detail=True, methods=['post'], url_path='sync')
+    def sync(self, request, pk=None):
+        connection = self.get_object()
+        from .integrations.odoo_client import OdooClientError, sync_erp_connection
+        try:
+            count, message = sync_erp_connection(connection)
+            connection.last_sync_at = timezone.now()
+            connection.last_sync_status = 'healthy'
+            connection.last_sync_message = message
+            connection.records_synced = count
+            connection.save(update_fields=[
+                'last_sync_at', 'last_sync_status', 'last_sync_message', 'records_synced', 'updated_at',
+            ])
+            return Response(ERPConnectionSerializer(connection).data)
+        except OdooClientError as exc:
+            connection.last_sync_status = 'error'
+            connection.last_sync_message = str(exc)
+            connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+            return Response({'detail': str(exc)}, status=400)
 
 # ==================================================
 # --- KABİN ÇİZİMİ İÇİN API ---

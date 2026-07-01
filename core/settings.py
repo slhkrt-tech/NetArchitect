@@ -147,6 +147,20 @@ SOCIAL_AUTH_OIDC_KEY = os.environ.get('SOCIAL_AUTH_OIDC_KEY', '')
 SOCIAL_AUTH_OIDC_SECRET = os.environ.get('SOCIAL_AUTH_OIDC_SECRET', '')
 SOCIAL_AUTH_OIDC_ENDPOINT = os.environ.get('SOCIAL_AUTH_OIDC_ENDPOINT', '')
 
+# Directory / Active Directory operasyon merkezi ayarları
+LDAP_ENABLED = os.environ.get('LDAP_ENABLED', 'False').lower() in ('1', 'true', 'yes')
+LDAP_SERVER_URI = os.environ.get('LDAP_SERVER_URI', '')
+LDAP_BASE_DN = os.environ.get('LDAP_BASE_DN', '')
+LDAP_BIND_USERNAME = os.environ.get('LDAP_BIND_USERNAME', '')
+LDAP_BIND_PASSWORD = os.environ.get('LDAP_BIND_PASSWORD', '')
+LDAP_USER_FILTER = os.environ.get('LDAP_USER_FILTER', '(objectClass=user)')
+LDAP_GROUP_FILTER = os.environ.get('LDAP_GROUP_FILTER', '(objectClass=group)')
+DIRECTORY_SYNC_DRY_RUN = os.environ.get('DIRECTORY_SYNC_DRY_RUN', 'True').lower() in ('1', 'true', 'yes')
+
+# OnlyOffice / Collabora belge sunucusu (tarayıcı editörü)
+ONLYOFFICE_DOCUMENT_SERVER_URL = os.environ.get('ONLYOFFICE_DOCUMENT_SERVER_URL', '')
+ONLYOFFICE_JWT_SECRET = os.environ.get('ONLYOFFICE_JWT_SECRET', '')
+
 POSTGRES_BACKUP_DIR = os.environ.get('POSTGRES_BACKUP_DIR', os.path.join(BASE_DIR, 'db_backups'))
 POSTGRES_BACKUP_FORMAT = os.environ.get('POSTGRES_BACKUP_FORMAT', 'custom')
 PG_DUMP_PATH = os.environ.get('PG_DUMP_PATH', 'pg_dump')
@@ -282,6 +296,23 @@ SPECTACULAR_SETTINGS = {
         'ComplianceStatusEnum': 'inventory.models.ComplianceControl.STATUS_CHOICES',
         'DocumentOutputJobTypeEnum': 'inventory.models.DocumentOutputJob.JOB_TYPE_CHOICES',
         'DocumentOutputJobStatusEnum': 'inventory.models.DocumentOutputJob.STATUS_CHOICES',
+        'DirectoryConnectionTypeEnum': 'inventory.models.DirectoryConnection.DIRECTORY_TYPE_CHOICES',
+        'DirectoryConnectionStatusEnum': 'inventory.models.DirectoryConnection.STATUS_CHOICES',
+        'DirectoryUserStatusEnum': 'inventory.models.DirectoryUser.STATUS_CHOICES',
+        'EndpointDeviceTypeEnum': 'inventory.models.EndpointDevice.DEVICE_TYPE_CHOICES',
+        'EndpointDeviceStatusEnum': 'inventory.models.EndpointDevice.STATUS_CHOICES',
+        'IdentityLifecycleProcessEnum': 'inventory.models.IdentityLifecycleTask.PROCESS_CHOICES',
+        'IdentityLifecycleStatusEnum': 'inventory.models.IdentityLifecycleTask.STATUS_CHOICES',
+        'FactoryDepartmentTypeEnum': 'inventory.models.FactoryDepartment.DEPARTMENT_TYPE_CHOICES',
+        'FactoryZoneTypeEnum': 'inventory.models.FactoryZone.ZONE_TYPE_CHOICES',
+        'ManagedDocumentCategoryEnum': 'inventory.models.ManagedDocument.CATEGORY_CHOICES',
+        'ManagedDocumentFileTypeEnum': 'inventory.models.ManagedDocument.FILE_TYPE_CHOICES',
+        'ManagedDocumentStatusEnum': 'inventory.models.ManagedDocument.STATUS_CHOICES',
+        'FactoryAssetRelationTypeEnum': 'inventory.models.FactoryITAssetRelation.ASSET_TYPE_CHOICES',
+        'FactoryAssetRelationRoleEnum': 'inventory.models.FactoryITAssetRelation.ROLE_CHOICES',
+        'AssetQRTagTypeEnum': 'inventory.models.AssetQRTag.TAG_TYPE_CHOICES',
+        'ERPConnectionTypeEnum': 'inventory.models.ERPConnection.ERP_TYPE_CHOICES',
+        'ERPConnectionSyncStatusEnum': 'inventory.models.ERPConnection.SYNC_STATUS_CHOICES',
     },
 }
 
@@ -339,6 +370,18 @@ CELERY_BEAT_SCHEDULE = {
     'haftalik-denetim-raporu': {
         'task': 'inventory.tasks.generate_and_send_audit_report',
         'schedule': crontab(day_of_week='1', hour=8, minute=0), 
+    },
+    'kamera-health-poll-10dk': {
+        'task': 'inventory.tasks.poll_camera_health_task',
+        'schedule': crontab(minute='*/10'),  # Kamera/NVR erişilebilirlik kontrolü
+    },
+    'erp-sync-saatlik': {
+        'task': 'inventory.tasks.sync_all_erp_connections_task',
+        'schedule': crontab(minute=15),  # Odoo/ERP bağlantı senkronizasyonu
+    },
+    'entegrasyon-health-poll-15dk': {
+        'task': 'inventory.tasks.poll_integration_health_task',
+        'schedule': crontab(minute='*/15'),  # LDAP, SMTP, API vb. uç nokta sağlığı
     },
 }
 

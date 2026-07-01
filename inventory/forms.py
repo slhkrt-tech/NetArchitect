@@ -8,6 +8,10 @@ from .models import (
     BusinessApplication, ReportTemplate,
     ChangeCalendarEvent, ServiceDependency, IntegrationHealthCheck,
     ComplianceControl, DocumentOutputJob,
+    DirectoryConnection, DirectoryGroup, DirectoryUser, EndpointDevice,
+    IdentityLifecycleTask,
+    FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
+    AssetQRTag, ERPConnection,
 )
 
 # Kullanıcı formu için gerekli importlar
@@ -682,5 +686,267 @@ class DocumentOutputJobForm(forms.ModelForm):
             'template': forms.Select(attrs={'class': 'form-select'}),
             'output_format': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'pdf'}),
             'status': forms.Select(attrs={'class': 'form-select'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class DirectoryConnectionForm(forms.ModelForm):
+    class Meta:
+        model = DirectoryConnection
+        fields = [
+            'name', 'directory_type', 'server_uri', 'base_dn', 'bind_username',
+            'user_filter', 'group_filter', 'sync_enabled', 'owner',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Fabrika AD'}),
+            'directory_type': forms.Select(attrs={'class': 'form-select'}),
+            'server_uri': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'ldap://dc01.firma.local'}),
+            'base_dn': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'DC=firma,DC=local'}),
+            'bind_username': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'FIRMA\\svc_omniops'}),
+            'user_filter': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'group_filter': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'sync_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'owner': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+
+class DirectoryGroupForm(forms.ModelForm):
+    class Meta:
+        model = DirectoryGroup
+        fields = [
+            'connection', 'name', 'distinguished_name', 'description',
+            'mapped_role', 'mapped_system', 'risk_level', 'owner', 'is_privileged',
+        ]
+        widgets = {
+            'connection': forms.Select(attrs={'class': 'form-select'}),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'distinguished_name': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'mapped_role': forms.TextInput(attrs={'class': 'form-control'}),
+            'mapped_system': forms.TextInput(attrs={'class': 'form-control'}),
+            'risk_level': forms.Select(attrs={'class': 'form-select'}),
+            'owner': forms.Select(attrs={'class': 'form-select'}),
+            'is_privileged': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+        }
+
+
+class DirectoryUserForm(forms.ModelForm):
+    class Meta:
+        model = DirectoryUser
+        fields = [
+            'connection', 'user', 'username', 'display_name', 'email',
+            'department', 'title', 'manager', 'status', 'mfa_enabled',
+            'last_login_at', 'risk_note',
+        ]
+        widgets = {
+            'connection': forms.Select(attrs={'class': 'form-select'}),
+            'user': forms.Select(attrs={'class': 'form-select'}),
+            'username': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'display_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'email': forms.EmailInput(attrs={'class': 'form-control'}),
+            'department': forms.TextInput(attrs={'class': 'form-control'}),
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'manager': forms.TextInput(attrs={'class': 'form-control'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'mfa_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'last_login_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'risk_note': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class EndpointDeviceForm(forms.ModelForm):
+    class Meta:
+        model = EndpointDevice
+        fields = [
+            'hostname', 'asset', 'assigned_user', 'assigned_to_text', 'device_type',
+            'serial_number', 'os_name', 'ip_address', 'factory_area', 'status',
+            'antivirus_ok', 'disk_encrypted', 'patch_level', 'last_seen_at', 'notes',
+        ]
+        widgets = {
+            'hostname': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'asset': forms.Select(attrs={'class': 'form-select'}),
+            'assigned_user': forms.Select(attrs={'class': 'form-select'}),
+            'assigned_to_text': forms.TextInput(attrs={'class': 'form-control'}),
+            'device_type': forms.Select(attrs={'class': 'form-select'}),
+            'serial_number': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'os_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'ip_address': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'factory_area': forms.Select(attrs={'class': 'form-select'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'antivirus_ok': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'disk_encrypted': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'patch_level': forms.TextInput(attrs={'class': 'form-control'}),
+            'last_seen_at': forms.DateTimeInput(attrs={'class': 'form-control', 'type': 'datetime-local'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+class IdentityLifecycleTaskForm(forms.ModelForm):
+    class Meta:
+        model = IdentityLifecycleTask
+        fields = [
+            'title', 'process_type', 'directory_user', 'employee_name', 'department',
+            'assigned_to', 'status', 'due_date', 'ad_account_done', 'mailbox_done',
+            'groups_done', 'endpoint_done', 'vpn_done', 'notes',
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'process_type': forms.Select(attrs={'class': 'form-select'}),
+            'directory_user': forms.Select(attrs={'class': 'form-select'}),
+            'employee_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'department': forms.TextInput(attrs={'class': 'form-control'}),
+            'assigned_to': forms.Select(attrs={'class': 'form-select'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'due_date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+            'ad_account_done': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'mailbox_done': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'groups_done': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'endpoint_done': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'vpn_done': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+        }
+
+
+# ==========================================
+# FABRİKA BT KOMUTA MERKEZİ FORMLARI
+# ==========================================
+
+class FactoryDepartmentForm(forms.ModelForm):
+    class Meta:
+        model = FactoryDepartment
+        fields = [
+            'name', 'code', 'department_type', 'criticality', 'manager_name',
+            'contact_phone', 'floor_label', 'description', 'is_active',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Üretim Departmanı'}),
+            'code': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'URETIM-01'}),
+            'department_type': forms.Select(attrs={'class': 'form-select'}),
+            'criticality': forms.Select(attrs={'class': 'form-select'}),
+            'manager_name': forms.TextInput(attrs={'class': 'form-control'}),
+            'contact_phone': forms.TextInput(attrs={'class': 'form-control'}),
+            'floor_label': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Zemin / 1. Kat'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+        }
+
+
+class FactoryZoneForm(forms.ModelForm):
+    class Meta:
+        model = FactoryZone
+        fields = [
+            'department', 'factory_area', 'name', 'code', 'zone_type', 'floor',
+            'building', 'capacity', 'criticality', 'description', 'is_active',
+        ]
+        widgets = {
+            'department': forms.Select(attrs={'class': 'form-select'}),
+            'factory_area': forms.Select(attrs={'class': 'form-select'}),
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Sistem Odası A'}),
+            'code': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'SYS-A'}),
+            'zone_type': forms.Select(attrs={'class': 'form-select'}),
+            'floor': forms.TextInput(attrs={'class': 'form-control'}),
+            'building': forms.TextInput(attrs={'class': 'form-control'}),
+            'capacity': forms.NumberInput(attrs={'class': 'form-control', 'min': '0'}),
+            'criticality': forms.Select(attrs={'class': 'form-select'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+        }
+
+
+class ManagedDocumentForm(forms.ModelForm):
+    class Meta:
+        model = ManagedDocument
+        fields = [
+            'title', 'reference_code', 'category', 'file_type', 'file',
+            'department', 'zone', 'version', 'status', 'description', 'tags',
+            'preview_enabled', 'external_editor_url', 'valid_until',
+        ]
+        widgets = {
+            'title': forms.TextInput(attrs={'class': 'form-control'}),
+            'reference_code': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'category': forms.Select(attrs={'class': 'form-select'}),
+            'file_type': forms.Select(attrs={'class': 'form-select'}),
+            'file': forms.ClearableFileInput(attrs={'class': 'form-control'}),
+            'department': forms.Select(attrs={'class': 'form-select'}),
+            'zone': forms.Select(attrs={'class': 'form-select'}),
+            'version': forms.TextInput(attrs={'class': 'form-control', 'placeholder': '1.0'}),
+            'status': forms.Select(attrs={'class': 'form-select'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'tags': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'prosedür, kalite, bakım'}),
+            'preview_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'external_editor_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'OnlyOffice/Collabora URL'}),
+            'valid_until': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
+        }
+
+
+class FactoryITAssetRelationForm(forms.ModelForm):
+    class Meta:
+        model = FactoryITAssetRelation
+        fields = [
+            'department', 'zone', 'asset_type', 'role', 'label', 'notes',
+            'device', 'camera', 'endpoint', 'printer', 'application',
+            'ticket', 'document', 'maintenance_task', 'consumable', 'it_asset',
+        ]
+        widgets = {
+            'department': forms.Select(attrs={'class': 'form-select'}),
+            'zone': forms.Select(attrs={'class': 'form-select'}),
+            'asset_type': forms.Select(attrs={'class': 'form-select'}),
+            'role': forms.Select(attrs={'class': 'form-select'}),
+            'label': forms.TextInput(attrs={'class': 'form-control'}),
+            'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
+            'device': forms.Select(attrs={'class': 'form-select'}),
+            'camera': forms.Select(attrs={'class': 'form-select'}),
+            'endpoint': forms.Select(attrs={'class': 'form-select'}),
+            'printer': forms.Select(attrs={'class': 'form-select'}),
+            'application': forms.Select(attrs={'class': 'form-select'}),
+            'ticket': forms.Select(attrs={'class': 'form-select'}),
+            'document': forms.Select(attrs={'class': 'form-select'}),
+            'maintenance_task': forms.Select(attrs={'class': 'form-select'}),
+            'consumable': forms.Select(attrs={'class': 'form-select'}),
+            'it_asset': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+
+class AssetQRTagForm(forms.ModelForm):
+    class Meta:
+        model = AssetQRTag
+        fields = [
+            'code', 'tag_type', 'label', 'location', 'device', 'endpoint',
+            'it_asset', 'camera', 'printer', 'factory_zone', 'consumable', 'is_active',
+        ]
+        widgets = {
+            'code': forms.TextInput(attrs={'class': 'form-control font-monospace', 'placeholder': 'OMNI-DEV-001'}),
+            'tag_type': forms.Select(attrs={'class': 'form-select'}),
+            'label': forms.TextInput(attrs={'class': 'form-control'}),
+            'location': forms.TextInput(attrs={'class': 'form-control'}),
+            'device': forms.Select(attrs={'class': 'form-select'}),
+            'endpoint': forms.Select(attrs={'class': 'form-select'}),
+            'it_asset': forms.Select(attrs={'class': 'form-select'}),
+            'camera': forms.Select(attrs={'class': 'form-select'}),
+            'printer': forms.Select(attrs={'class': 'form-select'}),
+            'factory_zone': forms.Select(attrs={'class': 'form-select'}),
+            'consumable': forms.Select(attrs={'class': 'form-select'}),
+            'is_active': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+        }
+
+
+class ERPConnectionForm(forms.ModelForm):
+    class Meta:
+        model = ERPConnection
+        fields = [
+            'name', 'erp_type', 'base_url', 'database_name', 'username', 'api_key',
+            'sync_enabled', 'sync_partners', 'sync_products', 'sync_helpdesk', 'notes',
+        ]
+        widgets = {
+            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Odoo Üretim'}),
+            'erp_type': forms.Select(attrs={'class': 'form-select'}),
+            'base_url': forms.URLInput(attrs={'class': 'form-control', 'placeholder': 'https://odoo.example.com'}),
+            'database_name': forms.TextInput(attrs={'class': 'form-control font-monospace'}),
+            'username': forms.TextInput(attrs={'class': 'form-control'}),
+            'api_key': forms.PasswordInput(render_value=True, attrs={'class': 'form-control'}),
+            'sync_enabled': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'sync_partners': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'sync_products': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
+            'sync_helpdesk': forms.CheckboxInput(attrs={'class': 'form-check-input mt-0'}),
             'notes': forms.Textarea(attrs={'class': 'form-control', 'rows': 2}),
         }

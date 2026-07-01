@@ -1,0 +1,185 @@
+{% extends 'base.html' %}
+
+{% block title %}Kimlik & Uç Nokta Merkezi - OmniOps{% endblock %}
+
+{% block content %}
+<section class="suite-hero mb-4">
+    <div>
+        <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+        <h1 class="suite-title">Kimlik & Uç Nokta Operasyon Merkezi</h1>
+        <p class="suite-subtitle">Active Directory, kullanıcı yaşam döngüsü, endpoint uyumu, MFA ve erişim risklerini tek merkezden yönetin.</p>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+        {% for connection in connections %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="sync_directory">
+            <input type="hidden" name="connection_id" value="{{ connection.id }}">
+            <button class="btn btn-primary">
+                <span class="iconify me-1" data-icon="mdi:sync"></span> {{ connection.name }} Sync
+            </button>
+        </form>
+        {% empty %}
+        <span class="badge bg-warning-subtle text-warning px-3 py-2">Directory bağlantısı yok</span>
+        {% endfor %}
+    </div>
+</section>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Directory</div><div class="display-6 fw-bold">{{ metrics.connections }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Kullanıcı</div><div class="display-6 fw-bold text-primary">{{ metrics.directory_users }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Dikkat Kullanıcı</div><div class="display-6 fw-bold text-warning">{{ metrics.attention_users }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Endpoint Alarm</div><div class="display-6 fw-bold text-danger">{{ metrics.endpoint_alerts }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Lifecycle</div><div class="display-6 fw-bold">{{ metrics.lifecycle_tasks }}</div></div></div></div>
+    <div class="col-md-2"><div class="card glass-card h-100"><div class="card-body"><div class="text-muted small">Privileged Grup</div><div class="display-6 fw-bold text-danger">{{ metrics.privileged_groups }}</div></div></div></div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-4">
+        <div class="accordion" id="identityForms">
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#connectionForm">Directory Bağlantısı</button></h2>
+                <div id="connectionForm" class="accordion-collapse collapse show" data-bs-parent="#identityForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="connection">{{ forms.connection.as_p }}<button class="btn btn-primary w-100">Bağlantıyı Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#userForm">Directory Kullanıcısı</button></h2>
+                <div id="userForm" class="accordion-collapse collapse" data-bs-parent="#identityForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="user">{{ forms.user.as_p }}<button class="btn btn-info w-100">Kullanıcı Snapshot Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#groupForm">Directory Grubu</button></h2>
+                <div id="groupForm" class="accordion-collapse collapse" data-bs-parent="#identityForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="group">{{ forms.group.as_p }}<button class="btn btn-warning w-100">Grubu Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card mb-3">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#endpointForm">Endpoint Cihazı</button></h2>
+                <div id="endpointForm" class="accordion-collapse collapse" data-bs-parent="#identityForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="endpoint">{{ forms.endpoint.as_p }}<button class="btn btn-success w-100">Endpoint Kaydet</button></form>
+                </div></div>
+            </div>
+            <div class="accordion-item border-0 glass-card">
+                <h2 class="accordion-header"><button class="accordion-button collapsed fw-bold" type="button" data-bs-toggle="collapse" data-bs-target="#lifecycleForm">Lifecycle İşi</button></h2>
+                <div id="lifecycleForm" class="accordion-collapse collapse" data-bs-parent="#identityForms"><div class="accordion-body">
+                    <form method="post">{% csrf_token %}<input type="hidden" name="action" value="lifecycle">{{ forms.lifecycle.as_p }}<button class="btn btn-secondary w-100">İşi Oluştur</button></form>
+                </div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-8">
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Directory Bağlantıları</div>
+                    <div class="card-body">
+                        {% for connection in connections %}
+                        <div class="border rounded-3 p-3 mb-2">
+                            <div class="d-flex justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-bold">{{ connection.name }}</div>
+                                    <div class="text-muted small">{{ connection.get_directory_type_display }} · {{ connection.server_uri|default:"URI yok" }}</div>
+                                    <div class="small">{{ connection.last_sync_message|default:"Henüz sync yok." }}</div>
+                                </div>
+                                <span class="badge bg-{{ connection.last_sync_status|yesno:'success,secondary,secondary' }}-subtle text-secondary">{{ connection.get_last_sync_status_display }}</span>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Henüz Directory bağlantısı yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Dikkat Gerektiren Kullanıcılar</div>
+                    <div class="card-body">
+                        {% for user in attention_users %}
+                        <div class="border-bottom py-2">
+                            <div class="fw-bold">{{ user.display_name|default:user.username }}</div>
+                            <div class="text-muted small">{{ user.department|default:"Departman yok" }} · {{ user.get_status_display }} · MFA: {{ user.mfa_enabled|yesno:"Var,Yok" }}</div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Riskli kullanıcı görünmüyor.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Endpoint Uyum Uyarıları</div>
+                    <div class="card-body">
+                        {% for endpoint in endpoint_alerts %}
+                        <div class="d-flex justify-content-between align-items-start border-bottom py-2 gap-2">
+                            <div>
+                                <div class="fw-bold">{{ endpoint.hostname }}</div>
+                                <div class="text-muted small">{{ endpoint.get_device_type_display }} · {{ endpoint.assigned_to_text|default:endpoint.assigned_user.username|default:"Zimmet yok" }}</div>
+                            </div>
+                            <form method="post">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="mark_endpoint_compliant">
+                                <input type="hidden" name="endpoint_id" value="{{ endpoint.id }}">
+                                <button class="btn btn-sm btn-outline-success">Uyumlu</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Endpoint alarmı yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card glass-card h-100">
+                    <div class="card-header bg-transparent fw-bold">Kimlik Lifecycle İşleri</div>
+                    <div class="card-body">
+                        {% for task in lifecycle_tasks %}
+                        <div class="border rounded-3 p-3 mb-2 {% if task.is_overdue %}border-danger-subtle{% endif %}">
+                            <div class="d-flex justify-content-between gap-2">
+                                <div>
+                                    <div class="fw-bold">{{ task.title }}</div>
+                                    <div class="text-muted small">{{ task.employee_name }} · {{ task.get_process_type_display }} · %{{ task.completion_percent }}</div>
+                                </div>
+                                <form method="post">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="mark_lifecycle_done">
+                                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                                    <button class="btn btn-sm btn-outline-primary">Tamamla</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted mb-0">Açık lifecycle işi yok.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <div class="card glass-card">
+                    <div class="card-header bg-transparent fw-bold">Ayrıcalıklı Gruplar</div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            {% for group in privileged_groups %}
+                            <div class="col-md-6">
+                                <div class="border rounded-3 p-3 h-100">
+                                    <div class="fw-bold">{{ group.name }}</div>
+                                    <div class="text-muted small">{{ group.mapped_system|default:"Sistem eşlemesi yok" }} · {{ group.get_risk_level_display }}</div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <p class="text-muted mb-0">Ayrıcalıklı grup kaydı yok.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

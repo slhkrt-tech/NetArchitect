@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+
+{% block title %}Varlık QR/Barkod Tarayıcı - OmniOps{% endblock %}
+
+{% block content %}
+<section class="suite-hero mb-4">
+    <div>
+        <span class="suite-eyebrow">OmniOps Factory IT Suite</span>
+        <h1 class="suite-title">Varlık QR / Barkod Tarayıcı</h1>
+        <p class="suite-subtitle">Fabrika zemininde etiket okutarak switch, endpoint, kamera veya IT varlığına anında gidin.</p>
+    </div>
+    <div class="badge bg-primary-subtle text-primary px-3 py-2">{{ metrics.tags }} aktif etiket</div>
+</section>
+
+<div class="row g-4">
+    <div class="col-lg-5">
+        <div class="card glass-card mb-4">
+            <div class="card-header bg-transparent fw-bold">Kamera ile Tara</div>
+            <div class="card-body">
+                <div id="qr-reader" class="rounded-3 overflow-hidden mb-3"></div>
+                <p class="text-muted small mb-0">Kamera izni verin ve QR/barkod okutun. Mobil cihazlarda arka kamera otomatik seçilir.</p>
+            </div>
+        </div>
+        <div class="card glass-card">
+            <div class="card-header bg-transparent fw-bold">Manuel Kod Girişi</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="lookup">
+                    <div class="input-group mb-3">
+                        <input type="text" name="code" class="form-control font-monospace" placeholder="OMNI-DEV-001" required>
+                        <button class="btn btn-primary">Ara</button>
+                    </div>
+                </form>
+                {% if lookup_result %}
+                <div class="border rounded-3 p-3 {% if lookup_result.found %}border-success{% else %}border-warning{% endif %}">
+                    <div class="fw-bold">{{ lookup_result.title }}</div>
+                    <div class="small text-muted">{{ lookup_result.tag_type }} · {{ lookup_result.code }}</div>
+                    {% if lookup_result.location %}<div class="small mt-1">{{ lookup_result.location }}</div>{% endif %}
+                    {% if lookup_result.found %}
+                    <a href="{{ lookup_result.url }}" class="btn btn-sm btn-success mt-2">Varlığa Git</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card glass-card mb-4">
+            <div class="card-header bg-transparent fw-bold">Yeni QR Etiket Kaydı</div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="tag">
+                    {{ forms.tag.as_p }}
+                    <button class="btn btn-primary">Etiket Kaydet</button>
+                </form>
+            </div>
+        </div>
+        <div class="card glass-card">
+            <div class="card-header bg-transparent fw-bold">Son Etiketler</div>
+            <div class="card-body">
+                {% for tag in recent_tags %}
+                <div class="document-card mb-2 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="fw-semibold font-monospace">{{ tag.code }}</div>
+                        <div class="small text-muted">{{ tag.get_tag_type_display }} · {{ tag.display_name }}</div>
+                    </div>
+                    <a href="{{ tag.resolved_url }}" class="btn btn-sm btn-outline-primary">Aç</a>
+                </div>
+                {% empty %}
+                <div class="text-muted">Henüz QR etiket yok.</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const readerEl = document.getElementById('qr-reader');
+    if (!readerEl || typeof Html5Qrcode === 'undefined') return;
+
+    const scanner = new Html5Qrcode('qr-reader');
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    function lookupCode(code) {
+        fetch(`/api/qr-lookup/?code=${encodeURIComponent(code)}`)
+            .then(r => r.json())
+            .then(data => {
+                if (data.found && data.url) {
+                    window.location.href = data.url;
+                } else {
+                    alert(`Kayıt bulunamadı: ${code}`);
+                }
+            });
+    }
+
+    Html5Qrcode.getCameras().then(cameras => {
+        const cameraId = cameras.length ? cameras[cameras.length - 1].id : { facingMode: 'environment' };
+        scanner.start(cameraId, config, decoded => lookupCode(decoded), () => {})
+            .catch(() => readerEl.innerHTML = '<div class="text-muted small p-3">Kamera başlatılamadı. Manuel kod girişini kullanın.</div>');
+    }).catch(() => {
+        readerEl.innerHTML = '<div class="text-muted small p-3">Kamera erişimi yok. Manuel kod girişini kullanın.</div>';
+    });
+});
+</script>
+{% endblock %}

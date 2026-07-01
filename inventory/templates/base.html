@@ -52,208 +52,160 @@
         
         <div class="overflow-auto flex-grow-1" style="overflow-x: hidden;">
             {% if user.is_staff %}
-            
-            {% if request.user|has_role:"Ağ Ekibi,Sistem Ekibi,Yönetim" %}
-            <p class="sidebar-heading">{% trans "Gözlem & Analiz" %}</p>
-            <ul class="nav flex-column mb-3">
-                <li class="nav-item">
-                    <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:view-dashboard-outline"></span> {% trans "Dashboard" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/monitor/" class="nav-link {% if request.path == '/monitor/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:chart-line"></span> {% trans "Zabbix Canlı İzleme" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/topoloji/" class="nav-link {% if request.path == '/topoloji/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:graph-outline"></span> {% trans "Ağ Topolojisi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'rack_elevation' %}" class="nav-link {% if request.path == '/veri-merkezi/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:server"></span> {% trans "Veri Merkezi" %}
-                    </a>
-                </li>
-            </ul>
-            {% endif %}
 
-            {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
-            <p class="sidebar-heading">{% trans "BT Varlık Merkezi" %}</p>
-            <ul class="nav flex-column mb-3">
-                <li class="nav-item">
-                    <a href="/it-envanter/" class="nav-link {% if request.path == '/it-envanter/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:server-network"></span> {% trans "BT Varlık Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/ag-tarayici/" class="nav-link {% if request.path == '/ag-tarayici/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:radar"></span> {% trans "Derin Ağ Keşfi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/ipam/" class="nav-link {% if '/ipam/' in request.path %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:ip-network-outline"></span> {% trans "Görsel IPAM" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/subnet-hesapla/" class="nav-link {% if request.path == '/subnet-hesapla/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:calculator-variant-outline"></span> {% trans "Subnet Hesapla" %}
-                    </a>
-                </li>
-            </ul>
-            {% endif %}
-
-            {% if request.user|has_role:"Sistem Ekibi,Yönetim,Ağ Ekibi" %}
-            <p class="sidebar-heading">{% trans "Siber Güvenlik & Operasyon" %}</p>
-            <ul class="nav flex-column mb-3">
-                <li class="nav-item">
-                    <a href="{% url 'reporting_hub' %}" class="nav-link {% if request.path == '/raporlar/' %}active{% endif %}">
-                        <span class="iconify text-info" data-icon="mdi:file-chart-outline"></span> {% trans "Raporlama Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'executive_summary' %}" class="nav-link {% if request.path == '/yonetici-bilgilendirme/' %}active{% endif %}">
-                        <span class="iconify text-primary" data-icon="mdi:chart-box-outline"></span> {% trans "Yönetici Bilgilendirme" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/sistem-loglari/" class="nav-link {% if request.path == '/sistem-loglari/' %}active{% endif %}">
-                        <span class="iconify text-danger" data-icon="mdi:shield-check-outline"></span> {% trans "Güvenlik Olayları & Loglar" %}
-                    </a>
-                </li>
-            </ul>
+            {% if request.user|has_role:"Ağ Ekibi,Sistem Ekibi,Yönetim,Help Desk Ekibi" %}
+            <div class="sidebar-group mb-2" data-sidebar-group="command">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupCommand" aria-expanded="true">
+                    <span>{% trans "Komuta" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse show" id="sidebarGroupCommand">
+                    <ul class="nav flex-column sidebar-group-items">
+                        {% if request.user|has_role:"Ağ Ekibi,Sistem Ekibi,Yönetim" %}
+                        <li class="nav-item"><a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}"><span class="iconify" data-icon="mdi:view-dashboard-outline"></span> {% trans "Dashboard" %}</a></li>
+                        {% endif %}
+                        {% if request.user|has_role:"Ağ Ekibi,Help Desk Ekibi,Yönetim" %}
+                        <li class="nav-item"><a href="{% url 'command_center' %}" class="nav-link {% if request.path == '/komuta-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:view-dashboard-edit-outline"></span> {% trans "Komuta Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'factory_command_center' %}" class="nav-link {% if request.path == '/fabrika-komuta-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:factory"></span> {% trans "Fabrika BT Komuta Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'setup_center' %}" class="nav-link {% if request.path == '/kurulum-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:progress-wrench"></span> {% trans "Kurulum & Sağlık Merkezi" %}</a></li>
+                        {% endif %}
+                        {% if request.user|has_role:"Sistem Ekibi,Yönetim,Ağ Ekibi" %}
+                        <li class="nav-item"><a href="{% url 'executive_summary' %}" class="nav-link {% if request.path == '/yonetici-bilgilendirme/' %}active{% endif %}"><span class="iconify text-primary" data-icon="mdi:chart-box-outline"></span> {% trans "Yönetici Bilgilendirme" %}</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
             {% endif %}
 
             {% if request.user|has_role:"Ağ Ekibi,Help Desk Ekibi,Yönetim" %}
-            <p class="sidebar-heading">{% trans "Otomasyon & ITSM" %}</p>
-            <ul class="nav flex-column mb-3">
-                <li class="nav-item">
-                    <a href="/panel/" class="nav-link {% if request.path == '/panel/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:ticket-confirmation-outline"></span> {% trans "Sistem & Bilet Yönetimi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'helpdesk_analytics' %}" class="nav-link {% if request.path == '/destek-analitik/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:chart-donut"></span> {% trans "Destek Analitikleri" %}
-                    </a>
-                </li>
-                {% if request.user|has_role:"Admin,Yönetim" %}
-                    <li class="nav-item">
-                        <a href="{% url 'user_management' %}" class="nav-link {% if request.path == '/kullanici-yonetimi/' %}active{% endif %}">
-                            <span class="iconify" data-icon="mdi:account-group-outline"></span> {% trans "Kullanıcı Yönetimi" %}
-                        </a>
-                    </li>
-                {% endif %}
-                <li class="nav-item">
-                    <a href="{% url 'field_routes' %}" class="nav-link {% if request.path == '/saha-rotalari/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Saha Rota Planlama" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'sales_kanban' %}" class="nav-link {% if request.path == '/satis-kanban/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:view-column-outline"></span> {% trans "Satış Kanban" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'factory_operations' %}" class="nav-link {% if request.path == '/fabrika-operasyonlari/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:factory"></span> {% trans "Fabrika IT Operasyonları" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'it_operations' %}" class="nav-link {% if request.path == '/it-operasyonlari/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:briefcase-account-outline"></span> {% trans "IT Operasyon Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'service_operations' %}" class="nav-link {% if request.path == '/servis-surecleri/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:clipboard-pulse-outline"></span> {% trans "Servis Süreç Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'command_center' %}" class="nav-link {% if request.path == '/komuta-merkezi/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:view-dashboard-edit-outline"></span> {% trans "Komuta Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'governance_center' %}" class="nav-link {% if request.path == '/yonetisim-merkezi/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:calendar-check-outline"></span> {% trans "Yönetişim Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'setup_center' %}" class="nav-link {% if request.path == '/kurulum-merkezi/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:progress-wrench"></span> {% trans "Kurulum & Sağlık Merkezi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'offline_field_app' %}" class="nav-link {% if request.path == '/offline-saha/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:cloud-sync-outline"></span> {% trans "Offline Saha Paneli" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'dlp_events' %}" class="nav-link {% if request.path == '/dlp-olaylari/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:shield-key-outline"></span> {% trans "DLP Olayları" %}
-                    </a>
-                </li>
-                
-                {% if request.user|has_role:"Ağ Ekibi,Yönetim" %}
-                <li class="nav-item">
-                    <a href="{% url 'bulk_config_generator' %}" class="nav-link {% if request.path == '/toplu-generator/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:rocket-launch-outline"></span> {% trans "Toplu Konfigürasyon" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="/uretici/" class="nav-link {% if request.path == '/uretici/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:console-line"></span> {% trans "Cihaz & CAB Yönetimi" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'port_mapping_list' %}" class="nav-link {% if '/port-haritasi/' in request.path %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Port Haritaları" %}
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a href="{% url 'device_backup' %}" class="nav-link {% if request.path == '/yedekleme/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:database-sync-outline"></span> {% trans "Yedekleme & Kurtarma" %}
-                    </a>
-                </li>
-                {% endif %}
-                
-                {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
-                <li class="nav-item">
-                    <a href="/admin/inventory/servicecatalogitem/" target="_blank" class="nav-link" title="Yeni hizmet kartları ekleyin (Yeni Sekme)">
-                        <span class="iconify" data-icon="mdi:format-list-checks"></span> {% trans "Hizmet Kataloğu" %} <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.9rem;"></span>
-                    </a>
-                </li>
-                {% endif %}
-            </ul>
+            <div class="sidebar-group mb-2" data-sidebar-group="factory">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupFactory" aria-expanded="false">
+                    <span>{% trans "Fabrika Envanteri" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupFactory">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="{% url 'factory_command_center' %}" class="nav-link {% if request.path == '/fabrika-komuta-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:view-grid-outline"></span> {% trans "Departman Kartelası" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'asset_qr_scanner' %}" class="nav-link {% if request.path == '/varlik-qr-tara/' %}active{% endif %}"><span class="iconify" data-icon="mdi:qrcode-scan"></span> {% trans "QR/Barkod Tarayıcı" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'factory_operations' %}" class="nav-link {% if request.path == '/fabrika-operasyonlari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:factory"></span> {% trans "Fabrika IT Operasyonları" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'it_operations' %}" class="nav-link {% if request.path == '/it-operasyonlari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:briefcase-account-outline"></span> {% trans "IT Operasyon Merkezi" %}</a></li>
+                    </ul>
+                </div>
+            </div>
             {% endif %}
-            
-            {% if user.is_authenticated %}
-            <p class="sidebar-heading">{% trans "Dokümantasyon" %}</p>
-            <ul class="nav flex-column mb-3">
-                <li class="nav-item">
-                    <a href="{% url 'knowledge_base' %}" class="nav-link {% if request.path == '/bilgi-bankasi/' %}active{% endif %}">
-                        <span class="iconify" data-icon="mdi:book-open-page-variant-outline"></span> {% trans "Bilgi Bankası" %}
-                    </a>
-                </li>
-            </ul>
+
+            {% if request.user|has_role:"Ağ Ekibi,Sistem Ekibi,Yönetim" %}
+            <div class="sidebar-group mb-2" data-sidebar-group="network">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupNetwork" aria-expanded="false">
+                    <span>{% trans "Ağ ve Sistem" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupNetwork">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="/monitor/" class="nav-link {% if request.path == '/monitor/' %}active{% endif %}"><span class="iconify" data-icon="mdi:chart-line"></span> {% trans "Zabbix Canlı İzleme" %}</a></li>
+                        <li class="nav-item"><a href="/topoloji/" class="nav-link {% if request.path == '/topoloji/' %}active{% endif %}"><span class="iconify" data-icon="mdi:graph-outline"></span> {% trans "Ağ Topolojisi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'rack_elevation' %}" class="nav-link {% if request.path == '/veri-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:server"></span> {% trans "Veri Merkezi" %}</a></li>
+                        {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
+                        <li class="nav-item"><a href="/it-envanter/" class="nav-link {% if request.path == '/it-envanter/' %}active{% endif %}"><span class="iconify" data-icon="mdi:server-network"></span> {% trans "BT Varlık Merkezi" %}</a></li>
+                        {% endif %}
+                        <li class="nav-item"><a href="/ag-tarayici/" class="nav-link {% if request.path == '/ag-tarayici/' %}active{% endif %}"><span class="iconify" data-icon="mdi:radar"></span> {% trans "Derin Ağ Keşfi" %}</a></li>
+                        <li class="nav-item"><a href="/ipam/" class="nav-link {% if '/ipam/' in request.path %}active{% endif %}"><span class="iconify" data-icon="mdi:ip-network-outline"></span> {% trans "Görsel IPAM" %}</a></li>
+                        <li class="nav-item"><a href="/subnet-hesapla/" class="nav-link {% if request.path == '/subnet-hesapla/' %}active{% endif %}"><span class="iconify" data-icon="mdi:calculator-variant-outline"></span> {% trans "Subnet Hesapla" %}</a></li>
+                        {% if request.user|has_role:"Ağ Ekibi,Yönetim" %}
+                        <li class="nav-item"><a href="{% url 'bulk_config_generator' %}" class="nav-link {% if request.path == '/toplu-generator/' %}active{% endif %}"><span class="iconify" data-icon="mdi:rocket-launch-outline"></span> {% trans "Toplu Konfigürasyon" %}</a></li>
+                        <li class="nav-item"><a href="/uretici/" class="nav-link {% if request.path == '/uretici/' %}active{% endif %}"><span class="iconify" data-icon="mdi:console-line"></span> {% trans "Cihaz & CAB Yönetimi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'port_mapping_list' %}" class="nav-link {% if '/port-haritasi/' in request.path %}active{% endif %}"><span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Port Haritaları" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'device_backup' %}" class="nav-link {% if request.path == '/yedekleme/' %}active{% endif %}"><span class="iconify" data-icon="mdi:database-sync-outline"></span> {% trans "Yedekleme & Kurtarma" %}</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.user|has_role:"Ağ Ekibi,Help Desk Ekibi,Yönetim" %}
+            <div class="sidebar-group mb-2" data-sidebar-group="identity">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupIdentity" aria-expanded="false">
+                    <span>{% trans "Kimlik ve Kullanıcı" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupIdentity">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="{% url 'identity_operations' %}" class="nav-link {% if request.path == '/kimlik-operasyonlari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:account-key-outline"></span> {% trans "Kimlik & Uç Nokta Merkezi" %}</a></li>
+                        {% if request.user|has_role:"Admin,Yönetim" %}
+                        <li class="nav-item"><a href="{% url 'user_management' %}" class="nav-link {% if request.path == '/kullanici-yonetimi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:account-group-outline"></span> {% trans "Kullanıcı Yönetimi" %}</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="sidebar-group mb-2" data-sidebar-group="service">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupService" aria-expanded="false">
+                    <span>{% trans "Servis Masası" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupService">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="/panel/" class="nav-link {% if request.path == '/panel/' %}active{% endif %}"><span class="iconify" data-icon="mdi:ticket-confirmation-outline"></span> {% trans "Sistem & Bilet Yönetimi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'helpdesk_analytics' %}" class="nav-link {% if request.path == '/destek-analitik/' %}active{% endif %}"><span class="iconify" data-icon="mdi:chart-donut"></span> {% trans "Destek Analitikleri" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'service_operations' %}" class="nav-link {% if request.path == '/servis-surecleri/' %}active{% endif %}"><span class="iconify" data-icon="mdi:clipboard-pulse-outline"></span> {% trans "Servis Süreç Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'field_routes' %}" class="nav-link {% if request.path == '/saha-rotalari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:map-marker-path"></span> {% trans "Saha Rota Planlama" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'sales_kanban' %}" class="nav-link {% if request.path == '/satis-kanban/' %}active{% endif %}"><span class="iconify" data-icon="mdi:view-column-outline"></span> {% trans "Satış Kanban" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'offline_field_app' %}" class="nav-link {% if request.path == '/offline-saha/' %}active{% endif %}"><span class="iconify" data-icon="mdi:cloud-sync-outline"></span> {% trans "Offline Saha Paneli" %}</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.user|has_role:"Sistem Ekibi,Yönetim,Ağ Ekibi,Help Desk Ekibi" %}
+            <div class="sidebar-group mb-2" data-sidebar-group="security">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupSecurity" aria-expanded="false">
+                    <span>{% trans "Güvenlik ve Yönetişim" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupSecurity">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="{% url 'governance_center' %}" class="nav-link {% if request.path == '/yonetisim-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:calendar-check-outline"></span> {% trans "Yönetişim Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'erp_integrations' %}" class="nav-link {% if request.path == '/erp-entegrasyonlari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:connection"></span> {% trans "ERP & Entegrasyon" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'dlp_events' %}" class="nav-link {% if request.path == '/dlp-olaylari/' %}active{% endif %}"><span class="iconify" data-icon="mdi:shield-key-outline"></span> {% trans "DLP Olayları" %}</a></li>
+                        <li class="nav-item"><a href="/sistem-loglari/" class="nav-link {% if request.path == '/sistem-loglari/' %}active{% endif %}"><span class="iconify text-danger" data-icon="mdi:shield-check-outline"></span> {% trans "Güvenlik Olayları & Loglar" %}</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if request.user|has_role:"Sistem Ekibi,Yönetim,Ağ Ekibi" %}
+            <div class="sidebar-group mb-2" data-sidebar-group="reports">
+                <button class="sidebar-group-toggle" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupReports" aria-expanded="false">
+                    <span>{% trans "Rapor ve Doküman" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupReports">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="{% url 'reporting_hub' %}" class="nav-link {% if request.path == '/raporlar/' %}active{% endif %}"><span class="iconify text-info" data-icon="mdi:file-chart-outline"></span> {% trans "Raporlama Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'factory_command_center' %}" class="nav-link {% if request.path == '/fabrika-komuta-merkezi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:file-document-outline"></span> {% trans "Doküman Merkezi" %}</a></li>
+                        <li class="nav-item"><a href="{% url 'knowledge_base' %}" class="nav-link {% if request.path == '/bilgi-bankasi/' %}active{% endif %}"><span class="iconify" data-icon="mdi:book-open-page-variant-outline"></span> {% trans "Bilgi Bankası" %}</a></li>
+                        {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
+                        <li class="nav-item"><a href="/admin/inventory/servicecatalogitem/" target="_blank" class="nav-link" title="Yeni hizmet kartları ekleyin (Yeni Sekme)"><span class="iconify" data-icon="mdi:format-list-checks"></span> {% trans "Hizmet Kataloğu" %} <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.9rem;"></span></a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
             {% endif %}
 
             {% if request.user|has_role:"Sistem Ekibi,Yönetim" %}
-            <hr class="border-secondary my-3 opacity-25">
-            <p class="sidebar-heading text-warning">{% trans "Yönetim & Yapılandırma" %}</p>
-            <ul class="nav flex-column mb-4">
-                <li class="nav-item">
-                    <a href="/admin/" target="_blank" class="nav-link text-warning bg-warning bg-opacity-10 border border-warning-subtle rounded-3" title="Gelişmiş ayarlar ve kullanıcı rolleri (Yeni Sekme)">
-                        <span class="iconify fs-4" data-icon="mdi:cogs"></span> {% trans "Sistem Ayarları ve IAM" %}
-                        <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.8rem;"></span>
-                    </a>
-                </li>
-            </ul>
+            <div class="sidebar-group mb-4" data-sidebar-group="admin">
+                <button class="sidebar-group-toggle text-warning" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarGroupAdmin" aria-expanded="false">
+                    <span>{% trans "Yönetim" %}</span>
+                    <span class="iconify sidebar-group-chevron" data-icon="mdi:chevron-down"></span>
+                </button>
+                <div class="collapse" id="sidebarGroupAdmin">
+                    <ul class="nav flex-column sidebar-group-items">
+                        <li class="nav-item"><a href="/admin/" target="_blank" class="nav-link text-warning bg-warning bg-opacity-10 border border-warning-subtle rounded-3" title="Gelişmiş ayarlar ve kullanıcı rolleri (Yeni Sekme)"><span class="iconify fs-4" data-icon="mdi:cogs"></span> {% trans "Sistem Ayarları ve IAM" %} <span class="iconify ms-auto opacity-50" data-icon="mdi:open-in-new" style="font-size: 0.8rem;"></span></a></li>
+                    </ul>
+                </div>
+            </div>
             {% endif %}
-            
+
             {% endif %}
             
             {% if user.is_authenticated and not user.is_staff %}

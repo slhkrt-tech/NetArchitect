@@ -1,4 +1,4 @@
-const CACHE_NAME = 'omniops-pwa-v3';
+const CACHE_NAME = 'omniops-pwa-v4';
 const ASSETS = [
   '/static/js/offline-sync.js',
   '/static/js/main.js',

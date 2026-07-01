@@ -7,11 +7,15 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.conf import settings
 from django.contrib.auth.models import User, Group
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
+from django.core.files.base import ContentFile
 from django.contrib.staticfiles import finders
 from django.contrib.staticfiles.storage import staticfiles_storage
 from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
 from django.db import connection, models
+from django.db.models import Count
+from django.urls import reverse
 from django.utils import timezone
 
 from .helpdesk import is_support_staff
@@ -25,6 +29,10 @@ from .forms import (
     CameraDeviceForm, BusinessApplicationForm, ReportTemplateForm,
     ChangeCalendarEventForm, ServiceDependencyForm, IntegrationHealthCheckForm,
     ComplianceControlForm, DocumentOutputJobForm,
+    DirectoryConnectionForm, DirectoryGroupForm, DirectoryUserForm,
+    EndpointDeviceForm, IdentityLifecycleTaskForm,
+    FactoryDepartmentForm, FactoryZoneForm, ManagedDocumentForm, FactoryITAssetRelationForm,
+    AssetQRTagForm, ERPConnectionForm,
 )
 from .models import (
     FieldVisit, SalesOpportunity, Ticket, DLPEvent, Device, ITAsset, License,
@@ -36,6 +44,10 @@ from .models import (
     BusinessApplication, ReportTemplate,
     ChangeCalendarEvent, ServiceDependency, IntegrationHealthCheck,
     ComplianceControl, DocumentOutputJob,
+    DirectoryConnection, DirectoryGroup, DirectoryUser, EndpointDevice,
+    IdentityLifecycleTask, SystemLog,
+    FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
+    AssetQRTag, ERPConnection,
 )
 
 
@@ -60,7 +72,7 @@ def _parse_optional_float(value):
 
 
 def health_check(request):
-    """Load balancer ve Docker healthcheck için hafif sağlık endpoint'i."""
+    """Yük dengeleyici ve Docker sağlık kontrolü için hafif durum uç noktası."""
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1")
@@ -118,6 +130,8 @@ def build_readiness_report():
             bool(getattr(settings, 'SAML_ENABLED', False)),
         ]), 'Azure AD/OIDC/SAML opsiyonel.', 'Kurumsal giriş isteniyorsa SSO bilgilerini girin.', 'warning'),
         _readiness_item('celery', 'Celery/Redis Ayarı', bool(getattr(settings, 'CELERY_BROKER_URL', '')), getattr(settings, 'CELERY_BROKER_URL', ''), 'Redis ve Celery worker/beat servislerini çalıştırın.'),
+        _readiness_item('factory_departments', 'Fabrika Kartelası', FactoryDepartment.objects.filter(is_active=True).exists(), 'Departman kartelası boş.', 'python manage.py omniops_doctor --bootstrap', 'warning'),
+        _readiness_item('managed_documents', 'Doküman Merkezi', ManagedDocument.objects.exists(), 'Henüz yönetilen doküman yok.', 'Fabrika BT Komuta Merkezi üzerinden PDF/DOCX yükleyin.', 'warning'),
     ])
 
     module_status = [
@@ -130,6 +144,12 @@ def build_readiness_report():
         {'title': 'İş Uygulaması', 'count': BusinessApplication.objects.count(), 'url': '/komuta-merkezi/'},
         {'title': 'Runbook', 'count': Runbook.objects.count(), 'url': '/servis-surecleri/'},
         {'title': 'Rapor Şablonu', 'count': ReportTemplate.objects.count(), 'url': '/komuta-merkezi/'},
+        {'title': 'Directory Kullanıcısı', 'count': DirectoryUser.objects.count(), 'url': '/kimlik-operasyonlari/'},
+        {'title': 'Endpoint Cihazı', 'count': EndpointDevice.objects.count(), 'url': '/kimlik-operasyonlari/'},
+        {'title': 'Fabrika Departmanı', 'count': FactoryDepartment.objects.filter(is_active=True).count(), 'url': '/fabrika-komuta-merkezi/'},
+        {'title': 'Yönetilen Doküman', 'count': ManagedDocument.objects.count(), 'url': '/fabrika-komuta-merkezi/'},
+        {'title': 'QR Etiket', 'count': AssetQRTag.objects.filter(is_active=True).count(), 'url': '/varlik-qr-tara/'},
+        {'title': 'ERP Bağlantısı', 'count': ERPConnection.objects.count(), 'url': '/erp-entegrasyonlari/'},
     ]
 
     critical_total = len([item for item in checks if item['severity'] == 'danger'])
@@ -148,10 +168,72 @@ def build_readiness_report():
             {'title': '1. Rolleri ve kategorileri hazırla', 'command': 'python manage.py setup_helpdesk'},
             {'title': '2. Admin oluştur', 'command': 'python manage.py createsuperuser'},
             {'title': '3. Veritabanını güncelle', 'command': 'python manage.py migrate'},
-            {'title': '4. Üretim servislerini başlat', 'command': 'docker compose up --build -d'},
-            {'title': '5. Sağlık kontrolü', 'command': 'curl http://127.0.0.1:8000/health/'},
+            {'title': '4. Fabrika kartelasını hazırla', 'command': 'python manage.py omniops_doctor --bootstrap'},
+            {'title': '5. Üretim servislerini başlat', 'command': 'docker compose up --build -d'},
+            {'title': '6. Sağlık kontrolü', 'command': 'curl http://127.0.0.1:8000/health/'},
+            {'title': '7. Fabrika BT Komuta Merkezi', 'command': 'http://127.0.0.1:8000/fabrika-komuta-merkezi/'},
         ],
     }
+
+
+def run_directory_sync(connection, actor=None):
+    """Directory bağlantısının durumunu güvenli şekilde kaydeder; gerçek LDAP yoksa net readiness mesajı üretir."""
+    now = timezone.now()
+    if not connection:
+        return False, 'Directory bağlantısı bulunamadı.'
+
+    if not connection.is_ready:
+        connection.last_sync_at = now
+        connection.last_sync_status = 'warning'
+        connection.last_sync_message = 'LDAP/AD bağlantı bilgileri eksik veya sync kapalı.'
+        connection.save(update_fields=['last_sync_at', 'last_sync_status', 'last_sync_message', 'updated_at'])
+        return False, connection.last_sync_message
+
+    created_users = 0
+    local_users = User.objects.filter(is_active=True).order_by('username')[:50]
+    for user in local_users:
+        try:
+            department = user.profile.department
+        except Exception:
+            department = ''
+        directory_user, created = DirectoryUser.objects.update_or_create(
+            connection=connection,
+            username=user.username,
+            defaults={
+                'user': user,
+                'display_name': user.get_full_name() or user.username,
+                'email': user.email or '',
+                'department': department,
+                'status': 'active',
+                'mfa_enabled': user.is_staff,
+                'last_seen_at': now,
+            },
+        )
+        if created:
+            created_users += 1
+        for group in user.groups.all():
+            directory_group, _ = DirectoryGroup.objects.update_or_create(
+                connection=connection,
+                name=group.name,
+                defaults={
+                    'mapped_role': group.name,
+                    'risk_level': 'high' if group.name in ['Admin', 'Yönetim', 'Sistem Ekibi'] else 'medium',
+                    'is_privileged': group.name in ['Admin', 'Yönetim', 'Sistem Ekibi'],
+                    'last_seen_at': now,
+                },
+            )
+            directory_user.groups.add(directory_group)
+
+    connection.last_sync_at = now
+    connection.last_sync_status = 'healthy'
+    connection.last_sync_message = f'Lokal kullanıcı snapshot sync tamamlandı. {local_users.count()} kullanıcı işlendi, {created_users} yeni kayıt.'
+    connection.save(update_fields=['last_sync_at', 'last_sync_status', 'last_sync_message', 'updated_at'])
+    SystemLog.objects.create(
+        user=actor,
+        action='SYSTEM',
+        details=f"Directory sync tamamlandı: {connection.name} - {connection.last_sync_message}",
+    )
+    return True, connection.last_sync_message
 
 
 @login_required
@@ -166,6 +248,102 @@ def readiness_api(request):
     if not is_support_staff(request.user):
         return JsonResponse({'status': 'error', 'message': 'Unauthorized'}, status=403)
     return JsonResponse(build_readiness_report())
+
+
+@login_required
+def identity_operations_view(request):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+
+    forms = {
+        'connection': DirectoryConnectionForm(),
+        'group': DirectoryGroupForm(),
+        'user': DirectoryUserForm(),
+        'endpoint': EndpointDeviceForm(),
+        'lifecycle': IdentityLifecycleTaskForm(),
+    }
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        form_map = {
+            'connection': DirectoryConnectionForm,
+            'group': DirectoryGroupForm,
+            'user': DirectoryUserForm,
+            'endpoint': EndpointDeviceForm,
+            'lifecycle': IdentityLifecycleTaskForm,
+        }
+        form_class = form_map.get(action)
+        if form_class:
+            form = form_class(request.POST)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                if action == 'lifecycle':
+                    obj.requested_by = request.user
+                obj.save()
+                if hasattr(form, 'save_m2m'):
+                    form.save_m2m()
+                messages.success(request, "Kimlik merkezi kaydı oluşturuldu.")
+                return redirect('identity_operations')
+            forms[action] = form
+        elif action == 'sync_directory':
+            connection = DirectoryConnection.objects.filter(pk=request.POST.get('connection_id')).first()
+            ok, message = run_directory_sync(connection, actor=request.user)
+            if ok:
+                messages.success(request, message)
+            else:
+                messages.warning(request, message)
+            return redirect('identity_operations')
+        elif action == 'mark_endpoint_compliant':
+            endpoint = EndpointDevice.objects.filter(pk=request.POST.get('endpoint_id')).first()
+            if endpoint:
+                endpoint.status = 'compliant'
+                endpoint.antivirus_ok = True
+                endpoint.disk_encrypted = True
+                endpoint.last_seen_at = timezone.now()
+                endpoint.save(update_fields=['status', 'antivirus_ok', 'disk_encrypted', 'last_seen_at', 'updated_at'])
+                messages.success(request, f"Endpoint uyumlu işaretlendi: {endpoint.hostname}")
+                return redirect('identity_operations')
+        elif action == 'mark_lifecycle_done':
+            task = IdentityLifecycleTask.objects.filter(pk=request.POST.get('task_id')).first()
+            if task:
+                task.status = 'done'
+                task.ad_account_done = True
+                task.mailbox_done = True
+                task.groups_done = True
+                task.endpoint_done = True
+                task.vpn_done = True
+                task.save(update_fields=[
+                    'status', 'ad_account_done', 'mailbox_done', 'groups_done',
+                    'endpoint_done', 'vpn_done', 'updated_at',
+                ])
+                messages.success(request, f"Kimlik işi tamamlandı: {task.title}")
+                return redirect('identity_operations')
+
+    connections = DirectoryConnection.objects.select_related('owner').order_by('name')
+    directory_users = DirectoryUser.objects.select_related('connection', 'user').prefetch_related('groups').order_by('status', 'username')
+    attention_users = [user for user in directory_users[:200] if user.needs_attention]
+    endpoints = EndpointDevice.objects.select_related('asset', 'assigned_user', 'factory_area').order_by('status', 'hostname')
+    endpoint_alerts = [endpoint for endpoint in endpoints[:200] if not endpoint.is_compliant or endpoint.is_stale]
+    lifecycle_tasks = IdentityLifecycleTask.objects.select_related('directory_user', 'requested_by', 'assigned_to').exclude(status__in=['done', 'cancelled']).order_by('due_date', '-created_at')
+    privileged_groups = DirectoryGroup.objects.filter(is_privileged=True).select_related('connection', 'owner').order_by('risk_level', 'name')
+
+    context = {
+        'forms': forms,
+        'connections': connections[:12],
+        'attention_users': attention_users[:20],
+        'endpoint_alerts': endpoint_alerts[:20],
+        'lifecycle_tasks': lifecycle_tasks[:20],
+        'privileged_groups': privileged_groups[:20],
+        'metrics': {
+            'connections': connections.count(),
+            'directory_users': DirectoryUser.objects.count(),
+            'attention_users': len(attention_users),
+            'endpoint_alerts': len(endpoint_alerts),
+            'lifecycle_tasks': lifecycle_tasks.count(),
+            'privileged_groups': privileged_groups.count(),
+        },
+    }
+    return render(request, 'identity_operations.html', context)
 
 
 @login_required
@@ -719,3 +897,404 @@ def optimize_field_route(request):
         visit.save(update_fields=['order_index', 'updated_at'])
     messages.success(request, "Rota en yakın komşu algoritmasıyla optimize edildi.")
     return redirect('field_routes')
+
+
+def _factory_area_ids_for_scope(department=None, zone=None):
+    if zone and zone.factory_area_id:
+        return [zone.factory_area_id]
+    if department:
+        return list(
+            department.zones.filter(is_active=True, factory_area__isnull=False)
+            .values_list('factory_area_id', flat=True)
+            .distinct()
+        )
+    return []
+
+
+def _gather_factory_scope_modules(department=None, zone=None):
+    """Seçili departman/alan için modül kartları ve varlık listelerini üretir."""
+    relation_filter = models.Q()
+    document_filter = models.Q()
+
+    if zone:
+        relation_filter = models.Q(zone=zone)
+        document_filter = models.Q(zone=zone) | models.Q(department=zone.department)
+        scope_label = zone.name
+    elif department:
+        relation_filter = models.Q(department=department) | models.Q(zone__department=department)
+        document_filter = models.Q(department=department)
+        scope_label = department.name
+    else:
+        return {'scope_label': None, 'modules': [], 'relations': [], 'documents': []}
+
+    relations = FactoryITAssetRelation.objects.filter(relation_filter).select_related(
+        'department', 'zone', 'device', 'camera', 'endpoint', 'printer',
+        'application', 'ticket', 'document', 'maintenance_task', 'consumable', 'it_asset',
+    ).order_by('asset_type', '-updated_at')
+
+    documents = ManagedDocument.objects.filter(document_filter).select_related('department', 'zone', 'owner').order_by('-updated_at')
+    area_ids = _factory_area_ids_for_scope(department=department, zone=zone)
+
+    cameras = CameraDevice.objects.filter(
+        models.Q(pk__in=relations.filter(camera__isnull=False).values_list('camera_id', flat=True))
+        | (models.Q(factory_area_id__in=area_ids) if area_ids else models.Q(pk__in=[]))
+    ).distinct().order_by('status', 'name')
+
+    devices = Device.objects.filter(
+        pk__in=relations.filter(device__isnull=False).values_list('device_id', flat=True)
+    ).order_by('name')
+
+    endpoints = EndpointDevice.objects.filter(
+        models.Q(pk__in=relations.filter(endpoint__isnull=False).values_list('endpoint_id', flat=True))
+        | (models.Q(factory_area_id__in=area_ids) if area_ids else models.Q(pk__in=[]))
+    ).distinct().order_by('status', 'hostname')
+
+    printers = PrinterFleetItem.objects.filter(
+        pk__in=relations.filter(printer__isnull=False).values_list('printer_id', flat=True)
+    ).order_by('name')
+
+    applications = BusinessApplication.objects.filter(
+        pk__in=relations.filter(application__isnull=False).values_list('application_id', flat=True)
+    ).order_by('name')
+
+    tickets = Ticket.objects.filter(
+        pk__in=relations.filter(ticket__isnull=False).values_list('ticket_id', flat=True)
+    ).order_by('-created_at')
+
+    maintenance_tasks = MaintenanceTask.objects.filter(
+        models.Q(pk__in=relations.filter(maintenance_task__isnull=False).values_list('maintenance_task_id', flat=True))
+        | (models.Q(factory_area_id__in=area_ids) if area_ids else models.Q(pk__in=[]))
+    ).distinct().order_by('next_due_at')
+
+    consumables = ConsumableItem.objects.filter(
+        pk__in=relations.filter(consumable__isnull=False).values_list('consumable_id', flat=True)
+    ).order_by('name')
+
+    it_assets = ITAsset.objects.filter(
+        pk__in=relations.filter(it_asset__isnull=False).values_list('it_asset_id', flat=True)
+    ).order_by('name')
+
+    modules = [
+        {'key': 'cameras', 'title': 'Kameralar', 'icon': 'mdi:cctv', 'items': list(cameras[:8]), 'count': cameras.count(), 'url': '/komuta-merkezi/'},
+        {'key': 'devices', 'title': 'Ağ Cihazları', 'icon': 'mdi:router-network', 'items': list(devices[:8]), 'count': devices.count(), 'url': '/topoloji/'},
+        {'key': 'endpoints', 'title': 'Endpointler', 'icon': 'mdi:laptop', 'items': list(endpoints[:8]), 'count': endpoints.count(), 'url': '/kimlik-operasyonlari/'},
+        {'key': 'printers', 'title': 'Yazıcılar', 'icon': 'mdi:printer', 'items': list(printers[:8]), 'count': printers.count(), 'url': '/servis-surecleri/'},
+        {'key': 'applications', 'title': 'İş Uygulamaları', 'icon': 'mdi:apps', 'items': list(applications[:8]), 'count': applications.count(), 'url': '/komuta-merkezi/'},
+        {'key': 'tickets', 'title': 'Ticketlar', 'icon': 'mdi:ticket-confirmation-outline', 'items': list(tickets[:8]), 'count': tickets.count(), 'url': '/panel/'},
+        {'key': 'documents', 'title': 'Dokümanlar', 'icon': 'mdi:file-document-outline', 'items': list(documents[:8]), 'count': documents.count(), 'url': '#documents-panel'},
+        {'key': 'maintenance', 'title': 'Bakım İşleri', 'icon': 'mdi:wrench-clock', 'items': list(maintenance_tasks[:8]), 'count': maintenance_tasks.count(), 'url': '/fabrika-operasyonlari/'},
+        {'key': 'consumables', 'title': 'Sarf/Yedek', 'icon': 'mdi:package-variant-closed', 'items': list(consumables[:8]), 'count': consumables.count(), 'url': '/fabrika-operasyonlari/'},
+        {'key': 'assets', 'title': 'IT Varlıkları', 'icon': 'mdi:server-network', 'items': list(it_assets[:8]), 'count': it_assets.count(), 'url': '/it-envanter/'},
+    ]
+
+    risk_count = (
+        cameras.filter(status__in=['offline', 'warning']).count()
+        + endpoints.exclude(status='compliant').count()
+        + sum(1 for task in maintenance_tasks if task.is_overdue)
+        + documents.filter(status__in=['draft', 'review']).count()
+    )
+
+    return {
+        'scope_label': scope_label,
+        'modules': modules,
+        'relations': relations[:30],
+        'documents': documents[:20],
+        'risk_count': risk_count,
+    }
+
+
+@login_required
+def factory_command_center_view(request):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+
+    forms = {
+        'department': FactoryDepartmentForm(),
+        'zone': FactoryZoneForm(),
+        'document': ManagedDocumentForm(),
+        'relation': FactoryITAssetRelationForm(),
+    }
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        form_map = {
+            'department': FactoryDepartmentForm,
+            'zone': FactoryZoneForm,
+            'document': ManagedDocumentForm,
+            'relation': FactoryITAssetRelationForm,
+        }
+        form_class = form_map.get(action)
+        if form_class:
+            form = form_class(request.POST, request.FILES if action == 'document' else None)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                if action == 'document':
+                    obj.owner = request.user
+                obj.save()
+                if hasattr(form, 'save_m2m'):
+                    form.save_m2m()
+                messages.success(request, "Fabrika komuta merkezi kaydı oluşturuldu.")
+                redirect_url = 'factory_command_center'
+                if action == 'zone' and obj.department_id:
+                    return redirect(f"{reverse('factory_command_center')}?department={obj.department_id}")
+                if action in ('document', 'relation') and obj.department_id:
+                    return redirect(f"{reverse('factory_command_center')}?department={obj.department_id}")
+                return redirect(redirect_url)
+            forms[action] = form
+        elif action == 'approve_document':
+            document = ManagedDocument.objects.filter(pk=request.POST.get('document_id')).first()
+            if document:
+                document.status = 'approved'
+                document.save(update_fields=['status', 'updated_at'])
+                messages.success(request, f"Doküman onaylandı: {document.title}")
+                return redirect(f"{reverse('factory_command_center')}?document={document.pk}")
+
+    selected_department = None
+    selected_zone = None
+    selected_document = None
+
+    department_id = request.GET.get('department')
+    zone_id = request.GET.get('zone')
+    document_id = request.GET.get('document')
+
+    if department_id:
+        selected_department = FactoryDepartment.objects.filter(pk=department_id, is_active=True).first()
+    if zone_id:
+        selected_zone = FactoryZone.objects.select_related('department', 'factory_area').filter(pk=zone_id, is_active=True).first()
+        if selected_zone and not selected_department:
+            selected_department = selected_zone.department
+    if document_id:
+        selected_document = ManagedDocument.objects.select_related('department', 'zone', 'owner').filter(pk=document_id).first()
+        if selected_document and not selected_department and selected_document.department_id:
+            selected_department = selected_document.department
+
+    departments = FactoryDepartment.objects.filter(is_active=True).annotate(
+        zone_total=Count('zones', filter=models.Q(zones__is_active=True))
+    ).order_by('department_type', 'name')
+
+    scope = _gather_factory_scope_modules(
+        department=selected_department,
+        zone=selected_zone,
+    )
+
+    if not selected_department and not selected_zone:
+        scope['documents'] = list(
+            ManagedDocument.objects.select_related('department', 'zone', 'owner').order_by('-updated_at')[:20]
+        )
+
+    zones = []
+    if selected_department:
+        zones = selected_department.zones.filter(is_active=True).select_related('factory_area').order_by('zone_type', 'name')
+
+    context = {
+        'forms': forms,
+        'departments': departments,
+        'selected_department': selected_department,
+        'selected_zone': selected_zone,
+        'selected_document': selected_document,
+        'zones': zones,
+        'scope': scope,
+        'metrics': {
+            'departments': departments.count(),
+            'zones': FactoryZone.objects.filter(is_active=True).count(),
+            'documents': ManagedDocument.objects.count(),
+            'relations': FactoryITAssetRelation.objects.count(),
+            'review_documents': sum(1 for doc in ManagedDocument.objects.all() if doc.needs_review),
+            'risk_items': scope.get('risk_count', 0) if selected_department or selected_zone else 0,
+        },
+    }
+    return render(request, 'factory_command_center.html', context)
+
+
+@login_required
+def managed_document_download(request, pk):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+    document = ManagedDocument.objects.filter(pk=pk).first()
+    if not document or not document.file:
+        from django.http import Http404
+        raise Http404('Doküman bulunamadı.')
+    filename = os.path.basename(document.file.name)
+    return FileResponse(document.file.open('rb'), as_attachment=True, filename=filename)
+
+
+@login_required
+def managed_document_preview(request, pk):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+    document = ManagedDocument.objects.filter(pk=pk).first()
+    if not document or not document.can_browser_preview:
+        from django.http import Http404
+        raise Http404('Bu doküman tarayıcıda önizlenemiyor.')
+    filename = os.path.basename(document.file.name)
+    response = FileResponse(document.file.open('rb'), content_type='application/pdf')
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
+
+
+@login_required
+def asset_qr_scanner_view(request):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+
+    lookup_result = None
+    forms = {'tag': AssetQRTagForm()}
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'tag':
+            form = AssetQRTagForm(request.POST)
+            if form.is_valid():
+                form.save()
+                messages.success(request, 'QR etiket kaydı oluşturuldu.')
+                return redirect('asset_qr_scanner')
+            forms['tag'] = form
+        elif action == 'lookup':
+            from .integrations.qr_resolver import resolve_qr_code
+            lookup_result = resolve_qr_code(request.POST.get('code'))
+
+    recent_tags = AssetQRTag.objects.filter(is_active=True).select_related(
+        'device', 'endpoint', 'it_asset', 'camera', 'factory_zone',
+    ).order_by('-updated_at')[:20]
+
+    return render(request, 'asset_qr_scanner.html', {
+        'forms': forms,
+        'lookup_result': lookup_result,
+        'recent_tags': recent_tags,
+        'metrics': {'tags': AssetQRTag.objects.filter(is_active=True).count()},
+    })
+
+
+@login_required
+def qr_lookup_api(request):
+    if not is_support_staff(request.user):
+        return JsonResponse({'detail': 'Yetkisiz'}, status=403)
+    from .integrations.qr_resolver import resolve_qr_code
+    code = (request.GET.get('code') or '').strip()
+    return JsonResponse(resolve_qr_code(code) or {'found': False, 'code': code})
+
+
+@login_required
+def managed_document_editor(request, pk):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+    from django.http import Http404
+    from .integrations.onlyoffice import build_onlyoffice_editor_config, get_onlyoffice_script_url, onlyoffice_enabled
+
+    document = ManagedDocument.objects.filter(pk=pk).first()
+    if not document or not document.file or not document.can_office_edit:
+        raise Http404('Bu doküman tarayıcı editöründe açılamaz.')
+
+    editor_payload = build_onlyoffice_editor_config(document, request)
+    if not onlyoffice_enabled() or not editor_payload:
+        messages.warning(request, 'OnlyOffice Document Server yapılandırılmamış. ONLYOFFICE_DOCUMENT_SERVER_URL ayarlayın veya harici editör URL kullanın.')
+        return redirect(f"{reverse('factory_command_center')}?document={document.pk}")
+
+    return render(request, 'managed_document_editor.html', {
+        'document': document,
+        'editor_payload_json': json.dumps(editor_payload),
+        'onlyoffice_script_url': get_onlyoffice_script_url(),
+    })
+
+
+@csrf_exempt
+@require_POST
+def managed_document_editor_callback(request, pk):
+    """OnlyOffice belge sunucusunun kaydetme geri çağrısı (callback)."""
+    import json
+    import urllib.request
+    from django.http import HttpResponse
+    from .integrations.onlyoffice import build_document_key
+
+    document = ManagedDocument.objects.filter(pk=pk).first()
+    if not document:
+        return HttpResponse(json.dumps({'error': 1}), content_type='application/json')
+
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except (ValueError, UnicodeDecodeError):
+        return HttpResponse(json.dumps({'error': 1}), content_type='application/json')
+
+    status = payload.get('status')
+    if status == 2 and payload.get('url'):
+        try:
+            with urllib.request.urlopen(payload['url'], timeout=30) as remote:
+                content = remote.read()
+            filename = os.path.basename(document.file.name)
+            document.file.save(filename, ContentFile(content), save=False)
+            document.file_size = len(content)
+            document.updated_at = timezone.now()
+            document.save(update_fields=['file', 'file_size', 'updated_at'])
+        except Exception as exc:
+            SystemLog.objects.create(action='SYSTEM', details=f'OnlyOffice callback hatası #{document.pk}: {exc}')
+            return HttpResponse(json.dumps({'error': 1}), content_type='application/json')
+
+    if build_document_key(document) != payload.get('key', ''):
+        pass
+
+    return HttpResponse(json.dumps({'error': 0}), content_type='application/json')
+
+
+@login_required
+def erp_integrations_view(request):
+    if not is_support_staff(request.user):
+        return redirect('dashboard')
+
+    form = ERPConnectionForm()
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        if action == 'connection':
+            form = ERPConnectionForm(request.POST)
+            if form.is_valid():
+                obj = form.save(commit=False)
+                obj.owner = request.user
+                obj.save()
+                messages.success(request, 'ERP bağlantısı kaydedildi.')
+                return redirect('erp_integrations')
+        elif action == 'test_connection':
+            connection = ERPConnection.objects.filter(pk=request.POST.get('connection_id')).first()
+            if connection:
+                from .integrations.odoo_client import OdooClientError, test_erp_connection
+                try:
+                    result = test_erp_connection(connection)
+                    connection.last_sync_status = 'healthy'
+                    connection.last_sync_message = f"Test OK · sürüm {result.get('server_version', 'unknown')}"
+                    connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+                    messages.success(request, connection.last_sync_message)
+                except OdooClientError as exc:
+                    connection.last_sync_status = 'error'
+                    connection.last_sync_message = str(exc)
+                    connection.save(update_fields=['last_sync_status', 'last_sync_message', 'updated_at'])
+                    messages.error(request, str(exc))
+                return redirect('erp_integrations')
+        elif action == 'sync_connection':
+            connection = ERPConnection.objects.filter(pk=request.POST.get('connection_id')).first()
+            if connection:
+                from inventory.tasks import sync_erp_connection_task
+                sync_erp_connection_task.delay(connection.id)
+                messages.success(request, f'{connection.name} sync kuyruğa alındı.')
+                return redirect('erp_integrations')
+        elif action == 'poll_cameras':
+            from inventory.tasks import poll_camera_health_task
+            poll_camera_health_task.delay()
+            messages.success(request, 'Kamera sağlık taraması kuyruğa alındı.')
+            return redirect('erp_integrations')
+
+    connections = ERPConnection.objects.select_related('owner').order_by('erp_type', 'name')
+    camera_summary = {
+        'online': CameraDevice.objects.filter(status='online').count(),
+        'warning': CameraDevice.objects.filter(status='warning').count(),
+        'offline': CameraDevice.objects.filter(status='offline').count(),
+        'maintenance': CameraDevice.objects.filter(status='maintenance').count(),
+    }
+
+    return render(request, 'erp_integrations.html', {
+        'form': form,
+        'connections': connections,
+        'camera_summary': camera_summary,
+        'metrics': {
+            'connections': connections.count(),
+            'healthy': connections.filter(last_sync_status='healthy').count(),
+            'errors': connections.filter(last_sync_status='error').count(),
+        },
+    })

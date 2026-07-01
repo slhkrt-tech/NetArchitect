@@ -13,6 +13,10 @@ from .models import (
     DepartmentChannel, DepartmentMessage, CameraDevice, BusinessApplication,
     ReportTemplate, ChangeCalendarEvent, ServiceDependency,
     IntegrationHealthCheck, ComplianceControl, DocumentOutputJob,
+    DirectoryConnection, DirectoryGroup, DirectoryUser, EndpointDevice,
+    IdentityLifecycleTask,
+    FactoryDepartment, FactoryZone, ManagedDocument, FactoryITAssetRelation,
+    AssetQRTag, ERPConnection,
 )
 
 # Temel ve basit modellerin doğrudan kaydı
@@ -60,6 +64,17 @@ admin.site.register(ServiceDependency)
 admin.site.register(IntegrationHealthCheck)
 admin.site.register(ComplianceControl)
 admin.site.register(DocumentOutputJob)
+admin.site.register(DirectoryConnection)
+admin.site.register(DirectoryGroup)
+admin.site.register(DirectoryUser)
+admin.site.register(EndpointDevice)
+admin.site.register(IdentityLifecycleTask)
+admin.site.register(FactoryDepartment)
+admin.site.register(FactoryZone)
+admin.site.register(ManagedDocument)
+admin.site.register(FactoryITAssetRelation)
+admin.site.register(AssetQRTag)
+admin.site.register(ERPConnection)
 
 # ========================================================
 # --- ITSM HİZMET KATALOĞU YÖNETİMİ ---

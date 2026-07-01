@@ -23,7 +23,7 @@ class InventorySmokeTests(TestCase):
         self.client.force_login(self.admin)
 
     def test_public_runtime_endpoints(self):
-        """Production healthcheck ve PWA service worker endpoint'leri çalışmalı."""
+        """Canlı ortam sağlık kontrolü ve PWA service worker uç noktaları çalışmalı."""
         self.assertEqual(self.client.get(reverse('health_check')).status_code, 200)
         response = self.client.get(reverse('service_worker_js'))
         self.assertEqual(response.status_code, 200)
@@ -58,6 +58,10 @@ class InventorySmokeTests(TestCase):
             'service_operations',
             'command_center',
             'governance_center',
+            'identity_operations',
+            'factory_command_center',
+            'asset_qr_scanner',
+            'erp_integrations',
             'setup_center',
             'offline_field_app',
             'dlp_events',
@@ -101,6 +105,15 @@ class InventorySmokeTests(TestCase):
         call_command('omniops_doctor', '--json', stdout=output)
         self.assertIn('score', output.getvalue())
 
+    def test_factory_bootstrap_creates_departments(self):
+        from inventory.factory_bootstrap import ensure_default_factory_structure
+        created_departments, created_zones = ensure_default_factory_structure()
+        self.assertGreaterEqual(created_departments, 1)
+        self.assertGreaterEqual(created_zones, 1)
+        created_departments, created_zones = ensure_default_factory_structure()
+        self.assertEqual(created_departments, 0)
+        self.assertEqual(created_zones, 0)
+
     def test_core_api_lists_render_for_admin(self):
         route_names = [
             'device-list',
@@ -140,11 +153,30 @@ class InventorySmokeTests(TestCase):
             'integration-health-check-list',
             'compliance-control-list',
             'document-output-job-list',
+            'directory-connection-list',
+            'directory-group-list',
+            'directory-user-list',
+            'endpoint-device-list',
+            'identity-lifecycle-task-list',
+            'factory-department-list',
+            'factory-zone-list',
+            'managed-document-list',
+            'factory-asset-relation-list',
+            'asset-qr-tag-list',
+            'erp-connection-list',
         ]
         for route_name in route_names:
             with self.subTest(route=route_name):
                 response = self.client.get(reverse(route_name))
                 self.assertEqual(response.status_code, 200)
+
+    def test_qr_lookup_api(self):
+        """QR kod arama API'si kayıtlı etiketi bulmalı."""
+        from inventory.models import AssetQRTag
+        AssetQRTag.objects.create(code='TEST-QR-001', tag_type='it_asset', label='Test Etiket')
+        response = self.client.get(reverse('qr_lookup_api'), {'code': 'TEST-QR-001'})
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json().get('found'))
 
     def test_sales_move_rejects_invalid_position(self):
         opportunity = SalesOpportunity.objects.create(
